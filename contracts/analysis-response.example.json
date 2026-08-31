@@ -1,0 +1,31 @@
+{
+  "meal_summary": "这一餐包含白粥和油条两种主食，还没有明显包含蛋白质类食物和蔬菜。",
+  "meal_structure": {
+    "staple": "present",
+    "protein": "not_obvious",
+    "vegetables": "not_obvious"
+  },
+  "main_issues": [
+    {
+      "dimension": "蛋白质",
+      "message": "食物列表中没有明显出现蛋白质类食物。"
+    },
+    {
+      "dimension": "蔬菜",
+      "message": "食物列表中没有明显出现蔬菜。"
+    }
+  ],
+  "suggestions": [
+    {
+      "title": "补充一种蛋白质食物",
+      "action": "可以搭配一个煮鸡蛋，或者加一小碟凉拌瘦牛肉。"
+    },
+    {
+      "title": "增加一份蔬菜",
+      "action": "可以搭配一份清炒青菜，或者切一盘新鲜的黄瓜番茄。"
+    }
+  ],
+  "friendly_report": "这一餐已经包含两种主食，目前暂时没有明显包含蛋白质类食物和蔬菜哦。",
+  "limitations": "本次分析仅依据用户确认的食物列表，未包含准确分量和烹饪用油等信息。",
+  "safety_note": "以上为一般性餐食结构建议，不替代医生或营养师的个体化指导。"
+}

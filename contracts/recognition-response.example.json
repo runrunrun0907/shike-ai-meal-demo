@@ -1,0 +1,29 @@
+{
+  "analyzable": true,
+  "rejection_reason": "",
+  "image_quality": "clear",
+  "foods": [
+    {
+      "id": "food_1",
+      "name": "白粥",
+      "category": "主食",
+      "confidence": "high",
+      "evidence": "碗中可见白色米粥"
+    },
+    {
+      "id": "food_2",
+      "name": "油条",
+      "category": "主食",
+      "confidence": "high",
+      "evidence": "图片上方可见条状油炸面食"
+    }
+  ],
+  "uncertain_items": [
+    {
+      "description": "粥面上的细碎配料",
+      "possible_names": [],
+      "reason": "仅凭图片无法可靠判断具体食材和烹调方式"
+    }
+  ],
+  "recognition_note": "请确认识别结果，并补充或修改不准确的食物。"
+}
