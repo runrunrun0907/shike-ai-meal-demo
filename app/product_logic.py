@@ -4,76 +4,103 @@ from collections import OrderedDict
 from typing import Iterable
 
 
-FOOD_CATEGORIES = ("主食", "蛋白质类", "蔬菜", "水果", "混合菜", "其他")
+FOOD_CATEGORIES = (
+    "谷薯类", "鱼禽肉蛋类", "奶类", "大豆坚果类", "蔬菜", "水果", "其他", "无法判断",
+)
 
 STAPLE_WORDS = (
-    "米饭", "白饭", "粥", "面条", "面包", "馒头", "包子", "饺子", "油条", "燕麦",
-    "玉米", "红薯", "紫薯", "土豆", "山药", "杂粮", "粉条", "米粉", "河粉",
+    "米饭", "白饭", "炒饭", "盖饭", "焖饭", "粥", "面", "粉", "面包", "馒头",
+    "包子", "饺子", "油条", "燕麦", "玉米", "红薯", "紫薯", "山药", "杂粮",
+    "河粉", "米线", "卷饼", "烧饼", "年糕",
 )
-PROTEIN_WORDS = (
-    "牛奶", "酸奶", "豆浆", "豆腐", "豆干", "豆皮", "鸡蛋", "鸭蛋", "鹌鹑蛋",
-    "鸡肉", "白切鸡", "鸡胸", "鸭肉", "鱼", "虾", "蟹", "牛肉", "猪肉", "羊肉",
-    "瘦肉", "肉", "排骨", "海鲜", "贝类",
+ANIMAL_WORDS = (
+    "鸡蛋", "鸭蛋", "鹌鹑蛋", "蛋花", "炒蛋", "蛋炒饭", "鸡肉", "白切鸡", "鸡胸", "鸭肉",
+    "鱼", "虾", "蟹", "牛肉", "猪肉", "羊肉", "瘦肉", "肉", "排骨", "海鲜", "贝类",
+    "香肠", "腊肠", "火腿",
+)
+DAIRY_WORDS = ("牛奶", "酸奶", "奶酪", "芝士", "乳酪", "奶粉")
+SOY_NUT_WORDS = (
+    "豆浆", "豆腐", "豆干", "豆皮", "腐竹", "黄豆", "黑豆", "毛豆", "坚果", "花生",
+    "核桃", "腰果", "杏仁", "开心果",
 )
 VEGETABLE_WORDS = (
     "油麦菜", "青菜", "菠菜", "生菜", "白菜", "西兰花", "菜花", "番茄", "西红柿",
     "黄瓜", "冬瓜", "南瓜", "茄子", "胡萝卜", "白萝卜", "芹菜", "蒜薹", "蒜苔",
-    "韭菜", "辣椒", "青椒", "彩椒", "豆角", "四季豆", "莴笋", "竹笋", "香菇", "蘑菇", "菌菇", "木耳",
+    "韭菜", "辣椒", "青椒", "彩椒", "豆角", "四季豆", "莴笋", "竹笋", "香菇",
+    "蘑菇", "菌菇", "木耳", "紫菜", "海带", "莲藕", "娃娃菜",
 )
 FRUIT_WORDS = (
     "苹果", "香蕉", "橙", "橘", "柚子", "梨", "葡萄", "草莓", "蓝莓", "西瓜",
     "哈密瓜", "芒果", "猕猴桃", "桃", "火龙果", "菠萝",
 )
-MIXED_DISH_PATTERNS = (
-    ("番茄", "蛋"), ("西红柿", "蛋"), ("肉", "菜"), ("牛肉", "面"), ("鸡蛋", "面"),
+
+HIGH_SALT_WORDS = (
+    "咸菜", "榨菜", "酱菜", "泡菜", "酸菜", "腐乳", "咸蛋", "腊肉", "腊肠", "香肠",
+    "火腿", "方便面", "泡面", "火锅底料", "卤味", "卤制", "腌制", "烟熏",
 )
+HIGH_FAT_WORDS = (
+    "油条", "炸鸡", "炸串", "薯条", "油炸", "酥皮", "肥肉", "五花肉", "奶油",
+    "炸糕", "炸丸子", "炸鱼", "炸虾",
+)
+HIGH_SUGAR_WORDS = (
+    "奶茶", "可乐", "汽水", "含糖饮料", "蛋糕", "甜点", "糖果", "冰淇淋", "曲奇",
+    "甜甜圈", "巧克力",
+)
+
+LEGACY_CATEGORY_MAP = {
+    "主食": ["谷薯类"],
+    "蛋白质": ["鱼禽肉蛋类"],
+    "蛋白质类": ["鱼禽肉蛋类"],
+    "奶豆坚果": ["奶类", "大豆坚果类"],
+    "蔬菜": ["蔬菜"],
+    "水果": ["水果"],
+    "混合菜": [],
+    "饮品": [],
+    "其他": ["其他"],
+}
 
 
 def _contains_any(name: str, words: Iterable[str]) -> bool:
     return any(word in name for word in words)
 
 
-def infer_food_category(name: str, current_category: str = "") -> str:
-    """Return a simple, user-facing primary food category.
+def _coerce_categories(value: object) -> list[str]:
+    if isinstance(value, (list, tuple, set)):
+        values = [str(item).strip() for item in value]
+    else:
+        raw = str(value or "").strip()
+        values = [part.strip() for part in raw.replace("，", ",").split(",") if part.strip()]
+    return [category for category in FOOD_CATEGORIES if category in values]
 
-    This is intentionally deterministic for common foods. The user can always
-    override the result in the confirmation table.
-    """
+
+def infer_food_categories(name: str, current_categories: object = None) -> list[str]:
+    """Return deterministic, multi-label food groups for the confirmation UI."""
     clean_name = str(name).strip()
     if not clean_name:
-        return "其他"
-
-    if any(all(part in clean_name for part in pattern) for pattern in MIXED_DISH_PATTERNS):
-        return "混合菜"
+        return ["无法判断"]
 
     matched = []
     for category, words in (
-        ("主食", STAPLE_WORDS),
-        ("蛋白质类", PROTEIN_WORDS),
+        ("谷薯类", STAPLE_WORDS),
+        ("鱼禽肉蛋类", ANIMAL_WORDS),
+        ("奶类", DAIRY_WORDS),
+        ("大豆坚果类", SOY_NUT_WORDS),
         ("蔬菜", VEGETABLE_WORDS),
         ("水果", FRUIT_WORDS),
     ):
         if _contains_any(clean_name, words):
             matched.append(category)
-    if len(matched) > 1:
-        return "混合菜"
     if matched:
-        return matched[0]
+        return matched
 
-    legacy_map = {
-        "蛋白质": "蛋白质类",
-        "奶豆坚果": "蛋白质类" if _contains_any(clean_name, PROTEIN_WORDS) else "其他",
-        "饮品": "蛋白质类" if _contains_any(clean_name, ("牛奶", "酸奶", "豆浆")) else "其他",
-        "主食": "主食",
-        "蔬菜": "蔬菜",
-        "水果": "水果",
-        "混合菜": "混合菜",
-        "其他": "其他",
-    }
-    return legacy_map.get(str(current_category).strip(), "其他")
+    current = _coerce_categories(current_categories)
+    if current:
+        return current
+    legacy = LEGACY_CATEGORY_MAP.get(str(current_categories or "").strip(), [])
+    return legacy or ["无法判断"]
 
 
-def normalize_foods(foods: Iterable[dict[str, str]]) -> list[dict[str, str]]:
+def normalize_foods(foods: Iterable[dict[str, object]]) -> list[dict[str, object]]:
     normalized = []
     for food in foods:
         name = str(food.get("name", "")).strip()
@@ -82,46 +109,42 @@ def normalize_foods(foods: Iterable[dict[str, str]]) -> list[dict[str, str]]:
         normalized.append(
             {
                 "name": name,
-                "category": infer_food_category(name, str(food.get("category", ""))),
+                "categories": infer_food_categories(name, food.get("categories", food.get("category", ""))),
                 "delete": False,
             }
         )
     return normalized
 
 
-def group_foods(foods: Iterable[dict[str, str]]) -> OrderedDict[str, list[str]]:
+def group_foods(foods: Iterable[dict[str, object]]) -> OrderedDict[str, list[str]]:
     grouped: OrderedDict[str, list[str]] = OrderedDict((category, []) for category in FOOD_CATEGORIES)
     for food in foods:
         name = str(food.get("name", "")).strip()
-        category = infer_food_category(name, str(food.get("category", "")))
-        if name and name not in grouped[category]:
-            grouped[category].append(name)
+        categories = _coerce_categories(food.get("categories")) or infer_food_categories(
+            name, food.get("category", "")
+        )
+        for category in categories:
+            if name and name not in grouped[category]:
+                grouped[category].append(name)
     return grouped
 
 
-def category_evidence(foods: Iterable[dict[str, str]]) -> dict[str, list[str]]:
-    """Map the three structure cards to concrete confirmed foods."""
-    evidence = {"staple": [], "protein": [], "vegetables": []}
-    for food in foods:
-        name = str(food.get("name", "")).strip()
-        category = infer_food_category(name, str(food.get("category", "")))
-        if category == "主食":
-            evidence["staple"].append(name)
-        elif category == "蛋白质类":
-            evidence["protein"].append(name)
-        elif category == "蔬菜":
-            evidence["vegetables"].append(name)
-        elif category == "混合菜":
-            if _contains_any(name, STAPLE_WORDS):
-                evidence["staple"].append(name)
-            if _contains_any(name, PROTEIN_WORDS) or "蛋" in name:
-                evidence["protein"].append(name)
-            if _contains_any(name, VEGETABLE_WORDS):
-                evidence["vegetables"].append(name)
-    return evidence
+def category_evidence(foods: Iterable[dict[str, object]]) -> dict[str, list[str]]:
+    """Map structure cards to concrete confirmed foods without model guessing."""
+    grouped = group_foods(foods)
+    protein_names = []
+    for category in ("鱼禽肉蛋类", "奶类", "大豆坚果类"):
+        for name in grouped[category]:
+            if name not in protein_names:
+                protein_names.append(name)
+    return {
+        "staple": grouped["谷薯类"],
+        "protein": protein_names,
+        "vegetables": grouped["蔬菜"],
+    }
 
 
-def build_meal_composition(foods: Iterable[dict[str, str]]) -> str:
+def build_meal_composition(foods: Iterable[dict[str, object]]) -> str:
     grouped = group_foods(foods)
     parts = []
     for category, names in grouped.items():
@@ -130,8 +153,42 @@ def build_meal_composition(foods: Iterable[dict[str, str]]) -> str:
     return "\n".join(parts) if parts else "暂时没有可分析的食物。"
 
 
+def build_structure_summary(foods: Iterable[dict[str, object]]) -> str:
+    """Build a deterministic headline from the user's confirmed food groups."""
+    evidence = category_evidence(foods)
+    labels = {"staple": "主食", "protein": "蛋白质来源", "vegetables": "蔬菜"}
+    present = [labels[key] for key in labels if evidence[key]]
+    missing = [labels[key] for key in labels if not evidence[key]]
+    if not present:
+        return "暂时无法从确认的食物中判断主食、蛋白质来源和蔬菜结构。"
+    if not missing:
+        return "这一餐已经包含主食、蛋白质来源和蔬菜，基础结构比较完整。"
+    return f"这一餐已经包含{'、'.join(present)}，暂未明显看到{'、'.join(missing)}。"
+
+
+def build_meal_report(foods: Iterable[dict[str, object]]) -> str:
+    """Create a concrete closing report without reclassifying confirmed foods."""
+    evidence = category_evidence(foods)
+    clauses = []
+    if evidence["staple"]:
+        clauses.append(f"{'、'.join(evidence['staple'])}提供了主食")
+    if evidence["protein"]:
+        clauses.append(f"{'、'.join(evidence['protein'])}提供了蛋白质来源")
+    if evidence["vegetables"]:
+        clauses.append(f"{'、'.join(evidence['vegetables'])}补充了蔬菜")
+    missing = [
+        label for key, label in (("staple", "主食"), ("protein", "蛋白质来源"), ("vegetables", "蔬菜"))
+        if not evidence[key]
+    ]
+    if not clauses:
+        return "目前确认的食物信息还不足以判断这餐的基础结构，可以继续补充或修改食物类别。"
+    detail = "；".join(clauses)
+    if missing:
+        return f"这餐中，{detail}。目前暂未明显看到{'、'.join(missing)}，可以按自己的食量适量补充。"
+    return f"这餐中，{detail}。三类基础食物都有覆盖，整体搭配值得继续保持。"
+
+
 def ensure_sentence(text: str) -> str:
-    """Normalize user-facing prose to one consistently punctuated sentence."""
     clean_text = str(text or "").strip().rstrip("~～")
     if not clean_text:
         return ""
@@ -140,28 +197,66 @@ def ensure_sentence(text: str) -> str:
     return f"{clean_text.rstrip('.!?')}。"
 
 
-def build_knowledge_tips(foods: Iterable[dict[str, str]]) -> list[str]:
+def build_risk_alerts(foods: Iterable[dict[str, object]]) -> list[dict[str, str]]:
+    """Create cautious, non-quantitative alerts only from strong name evidence."""
+    names = [str(food.get("name", "")).strip() for food in foods if str(food.get("name", "")).strip()]
+    alerts = []
+
+    salty = [name for name in names if _contains_any(name, HIGH_SALT_WORDS)]
+    if salty:
+        alerts.append({
+            "title": "盐可能偏多",
+            "message": f"{'、'.join(salty)}通常比较咸，盐里的钠也会相应增加。"
+            "这餐可以少吃一点腌制或加工配菜，汤汁和酱汁也不用全部吃完。",
+        })
+
+    fatty = [name for name in names if _contains_any(name, HIGH_FAT_WORDS) and "炸酱" not in name]
+    if fatty:
+        alerts.append({
+            "title": "油脂可能偏多",
+            "message": f"{'、'.join(fatty)}通常会带来较多油脂。"
+            "可以适当少吃油炸外皮、肥肉或奶油部分，再搭配一份清淡蔬菜。",
+        })
+
+    sugary = [name for name in names if _contains_any(name, HIGH_SUGAR_WORDS)]
+    if sugary:
+        alerts.append({
+            "title": "添加糖可能偏多",
+            "message": f"{'、'.join(sugary)}通常会加入较多糖。"
+            "今天其他饮料可以优先选择白水或无糖茶，也不用再额外搭配甜点。",
+        })
+    return alerts
+
+
+def build_knowledge_tips(foods: Iterable[dict[str, object]]) -> list[str]:
     names = [str(food.get("name", "")).strip() for food in foods]
     tips = []
     if any("蒜薹" in name or "蒜苔" in name for name in names):
-        tips.append("蒜薹通常归入蔬菜。它含有碳水化合物，但“含有碳水”不等于“属于主食”。")
+        tips.append("蒜薹归入蔬菜。它含有碳水化合物，但“含有碳水”不等于“属于谷薯类”。")
     if any("牛奶" in name for name in names):
-        tips.append("牛奶虽然是饮品形态，但在餐食结构中更适合作为蛋白质来源理解，同时也可能提供乳糖和脂肪。")
+        tips.append("牛奶归入奶类。它可以提供蛋白质和钙，但食物类别不等同于单一营养素。")
     if any(("番茄" in name or "西红柿" in name) and "蛋" in name for name in names):
-        tips.append("番茄炒蛋是混合菜：番茄主要贡献蔬菜，鸡蛋主要贡献蛋白质。")
+        tips.append("番茄炒蛋同时包含蔬菜和鱼禽肉蛋类，不需要在两者之间二选一。")
     if any("坚果" in name or name in ("花生", "核桃", "腰果", "杏仁") for name in names):
-        tips.append("坚果通常以脂肪贡献为主，也能提供部分蛋白质，因此不必强行归入单一营养素。")
+        tips.append("坚果归入大豆坚果类，通常以脂肪贡献为主，也能提供部分蛋白质。")
     return tips[:2]
 
 
-def analysis_payload(foods: Iterable[dict[str, str]]) -> list[dict[str, str]]:
-    """Translate UI categories to the analysis workflow's compatible labels."""
-    compatibility = {"蛋白质类": "蛋白质", "混合菜": "其他"}
-    return [
-        {
-            "name": str(food.get("name", "")).strip(),
-            "category": compatibility.get(str(food.get("category", "")).strip(), str(food.get("category", "")).strip()),
-        }
-        for food in foods
-        if str(food.get("name", "")).strip()
-    ]
+def analysis_payload(foods: Iterable[dict[str, object]]) -> list[dict[str, str]]:
+    """Expand food groups into labels understood by the existing Coze workflow."""
+    compatibility = {
+        "谷薯类": "主食", "鱼禽肉蛋类": "蛋白质", "奶类": "蛋白质",
+        "大豆坚果类": "蛋白质", "蔬菜": "蔬菜", "水果": "水果",
+        "其他": "其他", "无法判断": "其他",
+    }
+    payload = []
+    for food in foods:
+        name = str(food.get("name", "")).strip()
+        if not name:
+            continue
+        categories = _coerce_categories(food.get("categories")) or infer_food_categories(
+            name, food.get("category", "")
+        )
+        for category in categories:
+            payload.append({"name": name, "category": compatibility[category]})
+    return payload

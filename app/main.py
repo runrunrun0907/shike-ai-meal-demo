@@ -13,9 +13,12 @@ try:
         analysis_payload,
         build_knowledge_tips,
         build_meal_composition,
+        build_meal_report,
+        build_risk_alerts,
+        build_structure_summary,
         category_evidence,
         ensure_sentence,
-        infer_food_category,
+        infer_food_categories,
         normalize_foods,
     )
 except ModuleNotFoundError:
@@ -25,9 +28,12 @@ except ModuleNotFoundError:
         analysis_payload,
         build_knowledge_tips,
         build_meal_composition,
+        build_meal_report,
+        build_risk_alerts,
+        build_structure_summary,
         category_evidence,
         ensure_sentence,
-        infer_food_category,
+        infer_food_categories,
         normalize_foods,
     )
 
@@ -88,6 +94,8 @@ st.markdown(
       border-left: 4px solid #43a36b; border-radius: 16px; padding: 1rem 1.15rem;
       color: #246b43; line-height: 1.72;}
     .knowledge-card {background: #f5f4ff; border: 1px solid #dedaf5; color: #514b78;
+      border-radius: 16px; padding: .9rem 1.1rem; line-height: 1.72; margin: .55rem 0;}
+    .risk-card {background: #fff8ed; border: 1px solid #efd8ae; color: #704f18;
       border-radius: 16px; padding: .9rem 1.1rem; line-height: 1.72; margin: .55rem 0;}
     .card-title {font-weight: 750; margin-bottom: .22rem; color: inherit;}
     [data-testid="stMarkdownContainer"] p {line-height: 1.75;}
@@ -222,7 +230,7 @@ if result:
         st.markdown('<div class="section-title">确认识别结果</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="edit-guide"><strong>✏️ 请确认识别结果</strong><br>'
-            '点击表格中的食物名称或类别即可修改；需要删除时请勾选该行。'
+            '点击食物名称或类别即可修改，一道食物可以选择多个类别；需要删除时请勾选该行。'
             '修改名称后，可点击“智能整理类别”让系统重新判断。</div>',
             unsafe_allow_html=True,
         )
@@ -230,7 +238,7 @@ if result:
         if "editable_foods" not in st.session_state:
             st.session_state["editable_foods"] = normalize_foods(result.get("foods") or [])
 
-        table = pd.DataFrame(st.session_state["editable_foods"], columns=["name", "category", "delete"])
+        table = pd.DataFrame(st.session_state["editable_foods"], columns=["name", "categories", "delete"])
         table.index = range(1, len(table) + 1)
         edited = st.data_editor(
             table,
@@ -239,9 +247,10 @@ if result:
             column_config={
                 "_index": st.column_config.NumberColumn("编号", disabled=True),
                 "name": st.column_config.TextColumn("食物名称", required=True),
-                "category": st.column_config.SelectboxColumn(
-                    "类别",
+                "categories": st.column_config.MultiselectColumn(
+                    "食物类别",
                     options=list(FOOD_CATEGORIES),
+                    accept_new_options=False,
                     required=True,
                 ),
                 "delete": st.column_config.CheckboxColumn("删除", default=False),
@@ -253,7 +262,7 @@ if result:
         current_rows = [
             {
                 "name": str(row.get("name", "")).strip(),
-                "category": str(row.get("category", "其他")).strip() or "其他",
+                "categories": list(row.get("categories") or ["无法判断"]),
                 "delete": bool(row.get("delete", False)),
             }
             for row in edited.fillna("").to_dict("records")
@@ -265,9 +274,9 @@ if result:
                 changed = 0
                 organized = []
                 for row in current_rows:
-                    inferred = infer_food_category(row["name"], row["category"])
-                    changed += int(inferred != row["category"])
-                    organized.append({**row, "category": inferred, "delete": False})
+                    inferred = infer_food_categories(row["name"], row["categories"])
+                    changed += int(inferred != row["categories"])
+                    organized.append({**row, "categories": inferred, "delete": False})
                 st.session_state["editable_foods"] = organized
                 st.session_state["editor_version"] += 1
                 st.session_state["editor_notice"] = f"已更新 {changed} 项类别，请再次确认。" if changed else "当前类别无需调整。"
@@ -275,7 +284,7 @@ if result:
         with add_col:
             if st.button("＋ 添加食物", use_container_width=True):
                 st.session_state["editable_foods"] = current_rows + [
-                    {"name": "", "category": "其他", "delete": False}
+                    {"name": "", "categories": ["无法判断"], "delete": False}
                 ]
                 st.session_state["editor_version"] += 1
                 st.rerun()
@@ -298,11 +307,11 @@ if result:
             st.toast(editor_notice, icon="✅")
 
         category_mismatches = [
-            (row["name"], row["category"], infer_food_category(row["name"], row["category"]))
+            (row["name"], row["categories"], infer_food_categories(row["name"], row["categories"]))
             for row in current_rows
             if row["name"]
             and not row["delete"]
-            and infer_food_category(row["name"], row["category"]) != row["category"]
+            and infer_food_categories(row["name"], row["categories"]) != row["categories"]
         ]
         if category_mismatches:
             names = "、".join(item[0] for item in category_mismatches[:3])
@@ -320,7 +329,7 @@ if result:
         action_label = "保存修改并重新分析" if analysis_exists else "确认食物列表，进入分析"
         if st.button(action_label, type="primary"):
             confirmed = [
-                {"name": row["name"], "category": row["category"]}
+                {"name": row["name"], "categories": row["categories"]}
                 for row in current_rows
                 if row["name"] and not row["delete"]
             ]
@@ -347,7 +356,7 @@ if analysis:
     st.divider()
     st.markdown('<div class="section-title">餐食结构分析</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="result-summary">{escape(ensure_sentence(analysis.get("meal_summary", "")))}</div>',
+        f'<div class="result-summary">{escape(build_structure_summary(confirmed_foods))}</div>',
         unsafe_allow_html=True,
     )
 
@@ -365,17 +374,11 @@ if analysis:
             composition_rows.append(f'<div>{escape(ensure_sentence(line))}</div>')
     st.markdown(f'<div class="composition-card">{"".join(composition_rows)}</div>', unsafe_allow_html=True)
 
-    structure = analysis.get("meal_structure") or {}
     evidence = category_evidence(confirmed_foods)
-    state_labels = {
-        "present": "已包含",
-        "not_obvious": "未明显出现",
-        "uncertain": "暂无法判断",
-    }
     category_labels = (("主食", "staple"), ("蛋白质", "protein"), ("蔬菜", "vegetables"))
     columns = st.columns(3)
     for column, (label, key) in zip(columns, category_labels):
-        value = "已包含" if evidence.get(key) else state_labels.get(structure.get(key), "暂无法判断")
+        value = "已包含" if evidence.get(key) else "未明显出现"
         evidence_text = "、".join(evidence.get(key) or []) or "食物列表中未明显看到"
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
@@ -385,6 +388,11 @@ if analysis:
         )
 
     issues = analysis.get("main_issues") or []
+    local_missing = [
+        (label, f"确认后的食物列表中暂未明显看到{label}。")
+        for label, key in category_labels
+        if not evidence.get(key)
+    ]
     if issues:
         st.markdown('<div class="result-block-title">主要问题</div>', unsafe_allow_html=True)
         for issue in issues:
@@ -394,6 +402,14 @@ if analysis:
                 f'{escape(ensure_sentence(issue.get("message", "")))}</div>',
                 unsafe_allow_html=True,
             )
+    elif local_missing:
+        st.markdown('<div class="result-block-title">主要问题</div>', unsafe_allow_html=True)
+        for label, message in local_missing:
+            st.markdown(
+                '<div class="issue-card">'
+                f'<div class="card-title">{escape(label)}</div>{escape(message)}</div>',
+                unsafe_allow_html=True,
+            )
     else:
         st.markdown('<div class="result-block-title">✨ 本餐亮点</div>', unsafe_allow_html=True)
         st.markdown(
@@ -401,6 +417,17 @@ if analysis:
             '主食、蛋白质和蔬菜都已包含，基础结构完整，值得继续保持。</div>',
             unsafe_allow_html=True,
         )
+
+    risk_alerts = build_risk_alerts(confirmed_foods)
+    if risk_alerts:
+        st.markdown('<div class="result-block-title">⚠️ 这餐可以留意</div>', unsafe_allow_html=True)
+        for alert in risk_alerts:
+            st.markdown(
+                '<div class="risk-card">'
+                f'<div class="card-title">{escape(alert["title"])}</div>'
+                f'{escape(alert["message"])}</div>',
+                unsafe_allow_html=True,
+            )
 
     suggestions = analysis.get("suggestions") or []
     if suggestions:
@@ -415,13 +442,11 @@ if analysis:
                 unsafe_allow_html=True,
             )
 
-    friendly_report = analysis.get("friendly_report")
-    if friendly_report:
-        st.markdown('<div class="result-block-title">📝 给你的餐食小结</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="report-card">{escape(ensure_sentence(friendly_report))}</div>',
-            unsafe_allow_html=True,
-        )
+    st.markdown('<div class="result-block-title">📝 给你的餐食小结</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="report-card">{escape(build_meal_report(confirmed_foods))}</div>',
+        unsafe_allow_html=True,
+    )
 
     knowledge_tips = build_knowledge_tips(confirmed_foods)
     if knowledge_tips:
