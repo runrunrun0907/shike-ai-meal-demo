@@ -8,8 +8,26 @@ import streamlit as st
 
 try:
     from app.coze_client import CozeAPIError, run_analysis, run_recognition
+    from app.product_logic import (
+        FOOD_CATEGORIES,
+        analysis_payload,
+        build_knowledge_tips,
+        build_meal_composition,
+        category_evidence,
+        infer_food_category,
+        normalize_foods,
+    )
 except ModuleNotFoundError:
     from coze_client import CozeAPIError, run_analysis, run_recognition
+    from product_logic import (
+        FOOD_CATEGORIES,
+        analysis_payload,
+        build_knowledge_tips,
+        build_meal_composition,
+        category_evidence,
+        infer_food_category,
+        normalize_foods,
+    )
 
 
 st.set_page_config(
@@ -21,6 +39,8 @@ st.set_page_config(
 
 if "uploader_key" not in st.session_state:
     st.session_state["uploader_key"] = 0
+if "editor_version" not in st.session_state:
+    st.session_state["editor_version"] = 0
 
 current_step = 3 if st.session_state.get("analysis") else 2 if st.session_state.get("recognition") else 1
 
@@ -42,10 +62,15 @@ st.markdown(
       margin-right: .32rem; border-radius: 50%; background: #c9d2cc; color: white;}
     .section-title {margin-top: 1.2rem; color: #24302a; font-size: 1.3rem; font-weight: 750;}
     .privacy-note {margin: -.25rem 0 1rem; color: #718078; font-size: .82rem;}
+    .edit-guide {margin: .5rem 0 1rem; padding: .9rem 1rem; border-radius: 14px;
+      background: #eef7f1; border: 1px solid #d2e8d8; color: #315c40; line-height: 1.65;}
+    .composition-card {margin: .55rem 0 1.1rem; padding: 1rem 1.1rem; border-radius: 16px;
+      background: #f8fbf8; border: 1px solid #dce9df; color: #34453b; line-height: 1.75;}
     .structure-card {border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
     .structure-label {color: #6d7a72; font-size: .86rem; margin-bottom: .28rem;}
     .structure-value {color: #267c4d; font-size: 1.18rem; font-weight: 750;}
+    .structure-evidence {color: #718078; font-size: .76rem; line-height: 1.45; margin-top: .35rem;}
     .result-summary {margin: .25rem 0 1.05rem; color: #34453b; font-size: 1.04rem; line-height: 1.72;}
     .result-block-title {margin: 1.35rem 0 .55rem; color: #24302a; font-size: 1.18rem; font-weight: 750;}
     .praise-card, .issue-card, .suggestion-card {border-radius: 16px; padding: .9rem 1.1rem;
@@ -56,6 +81,8 @@ st.markdown(
     .report-card {background: linear-gradient(135deg, #edf8f0, #f7fbf8); border: 1px solid #cfe7d5;
       border-left: 4px solid #43a36b; border-radius: 16px; padding: 1rem 1.15rem;
       color: #246b43; line-height: 1.72;}
+    .knowledge-card {background: #f5f4ff; border: 1px solid #dedaf5; color: #514b78;
+      border-radius: 16px; padding: .9rem 1.1rem; line-height: 1.72; margin: .55rem 0;}
     .card-title {font-weight: 750; margin-bottom: .22rem; color: inherit;}
     [data-testid="stMarkdownContainer"] p {line-height: 1.75;}
     [data-testid="stCaptionContainer"] {line-height: 1.7;}
@@ -117,9 +144,10 @@ analysis_url = setting("COZE_ANALYSIS_URL", "https://f567znb64x.coze.site/run")
 
 if st.session_state.get("recognition") and not st.session_state.get("analysis"):
     if st.button("↻ 分析另一餐"):
-        for key in ("recognition", "analysis", "confirmed_foods", "foods_editor"):
+        for key in ("recognition", "analysis", "confirmed_foods", "editable_foods", "foods_editor"):
             st.session_state.pop(key, None)
         st.session_state["uploader_key"] += 1
+        st.session_state["editor_version"] += 1
         st.rerun()
 
 
@@ -162,6 +190,8 @@ if st.button("开始识别", type="primary", disabled=uploaded is None or file_t
                 st.session_state["recognition"] = result
                 st.session_state.pop("analysis", None)
                 st.session_state.pop("confirmed_foods", None)
+                st.session_state.pop("editable_foods", None)
+                st.session_state["editor_version"] += 1
                 status.update(label="识别完成", state="complete", expanded=False)
             st.rerun()
         except (CozeAPIError, ValueError) as exc:
@@ -179,27 +209,93 @@ if result:
         st.warning(reason_text)
     else:
         st.markdown('<div class="section-title">确认识别结果</div>', unsafe_allow_html=True)
-        st.caption("AI 可能会把菜品分得过细。请修改、删除或补充后再确认。")
+        st.markdown(
+            '<div class="edit-guide"><strong>✏️ 请确认识别结果</strong><br>'
+            '点击表格中的食物名称或类别即可修改；需要删除时请勾选该行。'
+            '修改名称后，可点击“智能整理类别”让系统重新判断。</div>',
+            unsafe_allow_html=True,
+        )
 
-        foods = result.get("foods") or []
-        table = pd.DataFrame(foods, columns=["name", "category"])
+        if "editable_foods" not in st.session_state:
+            st.session_state["editable_foods"] = normalize_foods(result.get("foods") or [])
+
+        table = pd.DataFrame(st.session_state["editable_foods"], columns=["name", "category", "delete"])
         table.index = range(1, len(table) + 1)
         edited = st.data_editor(
             table,
             hide_index=False,
-            num_rows="dynamic",
+            num_rows="fixed",
             column_config={
                 "_index": st.column_config.NumberColumn("编号", disabled=True),
                 "name": st.column_config.TextColumn("食物名称", required=True),
                 "category": st.column_config.SelectboxColumn(
                     "类别",
-                    options=["主食", "蛋白质", "蔬菜", "水果", "奶豆坚果", "饮品", "其他"],
+                    options=list(FOOD_CATEGORIES),
                     required=True,
                 ),
+                "delete": st.column_config.CheckboxColumn("删除", default=False),
             },
             width="stretch",
-            key="foods_editor",
+            key=f"foods_editor_{st.session_state['editor_version']}",
         )
+
+        current_rows = [
+            {
+                "name": str(row.get("name", "")).strip(),
+                "category": str(row.get("category", "其他")).strip() or "其他",
+                "delete": bool(row.get("delete", False)),
+            }
+            for row in edited.fillna("").to_dict("records")
+        ]
+
+        organize_col, add_col, delete_col = st.columns(3)
+        with organize_col:
+            if st.button("✨ 智能整理类别", use_container_width=True):
+                changed = 0
+                organized = []
+                for row in current_rows:
+                    inferred = infer_food_category(row["name"], row["category"])
+                    changed += int(inferred != row["category"])
+                    organized.append({**row, "category": inferred, "delete": False})
+                st.session_state["editable_foods"] = organized
+                st.session_state["editor_version"] += 1
+                st.session_state["editor_notice"] = f"已更新 {changed} 项类别，请再次确认。" if changed else "当前类别无需调整。"
+                st.rerun()
+        with add_col:
+            if st.button("＋ 添加食物", use_container_width=True):
+                st.session_state["editable_foods"] = current_rows + [
+                    {"name": "", "category": "其他", "delete": False}
+                ]
+                st.session_state["editor_version"] += 1
+                st.rerun()
+        with delete_col:
+            delete_count = sum(row["delete"] for row in current_rows)
+            if st.button(
+                f"🗑 删除勾选项{f'（{delete_count}）' if delete_count else ''}",
+                use_container_width=True,
+                disabled=delete_count == 0,
+            ):
+                st.session_state["editable_foods"] = [
+                    {**row, "delete": False} for row in current_rows if not row["delete"]
+                ]
+                st.session_state["editor_version"] += 1
+                st.session_state["editor_notice"] = f"已删除 {delete_count} 项食物。"
+                st.rerun()
+
+        editor_notice = st.session_state.pop("editor_notice", None)
+        if editor_notice:
+            st.success(editor_notice)
+
+        category_mismatches = [
+            (row["name"], row["category"], infer_food_category(row["name"], row["category"]))
+            for row in current_rows
+            if row["name"]
+            and not row["delete"]
+            and infer_food_category(row["name"], row["category"]) != row["category"]
+        ]
+        if category_mismatches:
+            names = "、".join(item[0] for item in category_mismatches[:3])
+            st.warning(f"检测到 {names} 的名称与当前类别可能不一致，建议点击“智能整理类别”后再确认。")
 
         uncertain = result.get("uncertain_items") or []
         if uncertain:
@@ -207,14 +303,14 @@ if result:
                 for item in uncertain:
                     st.write(f"- {item.get('description', '不确定食材')}：{item.get('reason', '无法确认具体种类')}")
 
-        st.info("请确认识别结果，如有遗漏或错误可以直接修改。")
+        st.info("确认前请检查食物名称与类别。最终分析将以你确认后的列表为准。")
         analysis_exists = bool(st.session_state.get("analysis"))
         action_label = "保存修改并重新分析" if analysis_exists else "确认食物列表，进入分析"
         if st.button(action_label, type="primary"):
             confirmed = [
-                {"name": str(row["name"]).strip(), "category": str(row["category"]).strip()}
-                for row in edited.fillna("").to_dict("records")
-                if str(row["name"]).strip() and str(row["category"]).strip()
+                {"name": row["name"], "category": row["category"]}
+                for row in current_rows
+                if row["name"] and not row["delete"]
             ]
             if not confirmed:
                 st.warning("请至少保留或添加一项食物后再分析。")
@@ -222,8 +318,11 @@ if result:
                 try:
                     with st.status("正在分析餐食结构……", expanded=True) as status:
                         st.write("正在整理这餐的结构与建议，请稍候。")
-                        analysis = run_analysis(analysis_url, token, confirmed)
+                        analysis = run_analysis(analysis_url, token, analysis_payload(confirmed))
                         st.session_state["confirmed_foods"] = confirmed
+                        st.session_state["editable_foods"] = [
+                            {**food, "delete": False} for food in confirmed
+                        ]
                         st.session_state["analysis"] = analysis
                         status.update(label="分析完成", state="complete", expanded=False)
                     st.rerun()
@@ -232,6 +331,7 @@ if result:
 
 analysis = st.session_state.get("analysis")
 if analysis:
+    confirmed_foods = st.session_state.get("confirmed_foods") or []
     st.divider()
     st.markdown('<div class="section-title">餐食结构分析</div>', unsafe_allow_html=True)
     st.markdown(
@@ -239,7 +339,14 @@ if analysis:
         unsafe_allow_html=True,
     )
 
+    st.markdown('<div class="result-block-title">🍽️ 本餐食物构成</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="composition-card">{escape(build_meal_composition(confirmed_foods))}</div>',
+        unsafe_allow_html=True,
+    )
+
     structure = analysis.get("meal_structure") or {}
+    evidence = category_evidence(confirmed_foods)
     state_labels = {
         "present": "已包含",
         "not_obvious": "未明显出现",
@@ -249,9 +356,11 @@ if analysis:
     columns = st.columns(3)
     for column, (label, key) in zip(columns, category_labels):
         value = state_labels.get(structure.get(key), "暂无法判断")
+        evidence_text = "、".join(evidence.get(key) or []) or "食物列表中未明显看到"
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
-            f'<div class="structure-value">{escape(value)}</div></div>',
+            f'<div class="structure-value">{escape(value)}</div>'
+            f'<div class="structure-evidence">{escape(evidence_text)}</div></div>',
             unsafe_allow_html=True,
         )
 
@@ -294,6 +403,12 @@ if analysis:
             unsafe_allow_html=True,
         )
 
+    knowledge_tips = build_knowledge_tips(confirmed_foods)
+    if knowledge_tips:
+        st.markdown('<div class="result-block-title">💡 食物小知识</div>', unsafe_allow_html=True)
+        for tip in knowledge_tips:
+            st.markdown(f'<div class="knowledge-card">{escape(tip)}</div>', unsafe_allow_html=True)
+
     with st.expander("分析说明与使用范围"):
         if analysis.get("limitations"):
             st.caption(analysis["limitations"])
@@ -308,7 +423,8 @@ if analysis:
             st.rerun()
     with restart_col:
         if st.button("分析另一餐", type="primary", use_container_width=True):
-            for key in ("recognition", "analysis", "confirmed_foods", "foods_editor"):
+            for key in ("recognition", "analysis", "confirmed_foods", "editable_foods", "foods_editor"):
                 st.session_state.pop(key, None)
             st.session_state["uploader_key"] += 1
+            st.session_state["editor_version"] += 1
             st.rerun()
