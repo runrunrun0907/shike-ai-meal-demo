@@ -12,13 +12,13 @@ try:
         FOOD_CATEGORIES,
         analysis_payload,
         build_knowledge_tips,
-        build_meal_composition,
         build_meal_report,
         build_risk_alerts,
         build_structure_summary,
         category_evidence,
         ensure_sentence,
         infer_food_categories,
+        merge_recognition_results,
         normalize_foods,
     )
 except ModuleNotFoundError:
@@ -27,13 +27,13 @@ except ModuleNotFoundError:
         FOOD_CATEGORIES,
         analysis_payload,
         build_knowledge_tips,
-        build_meal_composition,
         build_meal_report,
         build_risk_alerts,
         build_structure_summary,
         category_evidence,
         ensure_sentence,
         infer_food_categories,
+        merge_recognition_results,
         normalize_foods,
     )
 
@@ -65,10 +65,11 @@ st.markdown(
     .hero h1 {font-size: 2.15rem; margin: .35rem 0 .55rem; color: #1f2d25;}
     .hero p {margin: 0; color: #617067; font-size: 1rem; line-height: 1.75;}
     .steps {display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin: 1rem 0 1.6rem;}
-    .step {background: #f5f7f5; color: #738078; border: 1px solid #e5ebe6; border-radius: 14px;
-      padding: .78rem .9rem; font-size: .9rem; text-align: center; font-weight: 600;}
-    .step span {display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem;
-      margin-right: .32rem; border-radius: 50%; background: #c9d2cc; color: white;}
+    .step {display: flex; align-items: center; justify-content: center; background: #f5f7f5;
+      color: #738078; border: 1px solid #e5ebe6; border-radius: 14px; padding: .78rem .9rem;
+      font-size: .9rem; text-align: center; font-weight: 600;}
+    .step span {display: inline-grid; place-items: center; flex: 0 0 1.45rem; width: 1.45rem; height: 1.45rem;
+      margin-right: .38rem; border-radius: 50%; background: #c9d2cc; color: white; line-height: 1;}
     .section-title {margin-top: 1.2rem; color: #24302a; font-size: 1.3rem; font-weight: 750;}
     .privacy-note {margin: -.25rem 0 1rem; color: #718078; font-size: .82rem;}
     .edit-guide {margin: .5rem 0 1rem; padding: .9rem 1rem; border-radius: 14px;
@@ -80,9 +81,9 @@ st.markdown(
     .composition-label {font-weight: 750; color: #276b45;}
     .structure-card {border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
-    .structure-label {color: #6d7a72; font-size: .86rem; margin-bottom: .28rem;}
-    .structure-value {color: #267c4d; font-size: 1.18rem; font-weight: 750;}
-    .structure-evidence {color: #718078; font-size: .76rem; line-height: 1.45; margin-top: .35rem;}
+    .structure-label {color: #111; font-size: 1rem; font-weight: 700; margin-bottom: .3rem;}
+    .structure-value {color: #111; font-size: 1.34rem; font-weight: 800;}
+    .structure-evidence {color: #111; font-size: .9rem; font-weight: 550; line-height: 1.5; margin-top: .38rem;}
     .result-summary {margin: .25rem 0 1.05rem; color: #34453b; font-size: 1.04rem; line-height: 1.72;}
     .result-block-title {margin: 1.35rem 0 .55rem; color: #24302a; font-size: 1.18rem; font-weight: 750;}
     .praise-card, .issue-card, .suggestion-card {border-radius: 16px; padding: .9rem 1.1rem;
@@ -123,7 +124,7 @@ st.markdown(
     <div class="hero">
       <div class="hero-kicker">AI MEAL COMPANION</div>
       <h1>🥗 食刻</h1>
-      <p>上传一张餐食照片，确认 AI 识别结果，再获得清晰、亲切、可执行的餐食结构建议。</p>
+      <p>上传 1–4 张餐食照片，确认 AI 识别结果，再获得清晰、亲切、可执行的餐食结构建议。</p>
     </div>
     <div class="steps">
       <div class="step"><span>1</span>上传餐食</div>
@@ -134,24 +135,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-completed_steps = range(1, current_step)
+analysis_complete = bool(st.session_state.get("analysis"))
+completed_steps = range(1, current_step + 1) if analysis_complete else range(1, current_step)
 completed_css = "\n".join(
     f".step:nth-child({step}) {{background:#edf8f0;color:#2f6f48;border-color:#cfe7d5;}}"
     f".step:nth-child({step}) span {{background:#43a36b;font-size:0;}}"
     f'.step:nth-child({step}) span::after {{content:"✓";font-size:.85rem;}}'
     for step in completed_steps
 )
-st.markdown(
-    f"""<style>
-    {completed_css}
-    .step:nth-child({current_step}) {{background:#e6f4ea;color:#245f3d;border-color:#96caaa;
-      box-shadow:0 4px 14px rgba(46,139,87,.10);}}
-    .step:nth-child({current_step}) span {{background:#2e8b57;}}
-    </style>""",
-    unsafe_allow_html=True,
+active_css = "" if analysis_complete else (
+    f".step:nth-child({current_step}) {{background:#e6f4ea;color:#245f3d;border-color:#96caaa;"
+    "box-shadow:0 4px 14px rgba(46,139,87,.10);}}"
+    f".step:nth-child({current_step}) span {{background:#2e8b57;}}"
 )
+st.markdown(f"<style>{completed_css}{active_css}</style>", unsafe_allow_html=True)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_IMAGE_COUNT = 4
 
 def setting(name: str, default: str = "") -> str:
     return os.getenv(name) or str(st.secrets.get(name, default))
@@ -184,25 +184,39 @@ def friendly_error(exc: Exception) -> str:
         return "AI 返回结果暂时无法读取，请再试一次。"
     return "连接 AI 服务时出现问题，请稍后重试。"
 
-uploaded = st.file_uploader(
-    "上传一张餐食图片",
+uploaded_images = st.file_uploader(
+    "上传餐食图片（最多 4 张）",
     type=["jpg", "jpeg", "png", "webp"],
+    accept_multiple_files=True,
     key=f"meal_uploader_{st.session_state['uploader_key']}",
 )
-st.markdown('<div class="privacy-note">🔒 图片仅用于本次 AI 分析，当前版本不会保存用户上传的图片。</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="privacy-note">可上传同一餐食的不同角度，帮助 AI 看清被遮挡的食物；最多 4 张，每张不超过 10 MB。<br>'
+    '🔒 图片仅用于本次 AI 分析，当前版本不会保存用户上传的图片。</div>',
+    unsafe_allow_html=True,
+)
 
-file_too_large = uploaded is not None and uploaded.size > MAX_FILE_SIZE
-if file_too_large:
-    st.error("图片超过 10 MB，请压缩后重新上传。")
+too_many_files = len(uploaded_images) > MAX_IMAGE_COUNT
+oversized_files = [image.name for image in uploaded_images if image.size > MAX_FILE_SIZE]
+if too_many_files:
+    st.error(f"一餐最多上传 {MAX_IMAGE_COUNT} 张图片，请移除多余图片后再识别。")
+if oversized_files:
+    st.error(f"以下图片超过 10 MB，请压缩后重新上传：{'、'.join(oversized_files)}")
 
-if st.button("开始识别", type="primary", disabled=uploaded is None or file_too_large):
+uploads_valid = bool(uploaded_images) and not too_many_files and not oversized_files
+if st.button("开始识别", type="primary", disabled=not uploads_valid):
     if not token:
         st.error("尚未配置 COZE_API_TOKEN。请在本机环境变量或 Streamlit Secrets 中配置，勿写入代码。")
     else:
         try:
             with st.status("正在识别图片……", expanded=True) as status:
-                st.write("正在查看图片中的餐食，请稍候。")
-                result = run_recognition(workflow_url, token, uploaded.getvalue(), uploaded.type)
+                recognition_results = []
+                for index, image in enumerate(uploaded_images, start=1):
+                    st.write(f"正在识别第 {index}/{len(uploaded_images)} 张图片：{image.name}")
+                    recognition_results.append(
+                        run_recognition(workflow_url, token, image.getvalue(), image.type)
+                    )
+                result = merge_recognition_results(recognition_results)
                 st.session_state["recognition"] = result
                 st.session_state.pop("analysis", None)
                 st.session_state.pop("confirmed_foods", None)
@@ -213,8 +227,11 @@ if st.button("开始识别", type="primary", disabled=uploaded is None or file_t
         except (CozeAPIError, ValueError) as exc:
             st.error(friendly_error(exc))
 
-if uploaded and not file_too_large:
-    st.image(uploaded, caption="待识别图片", width="stretch")
+if uploads_valid:
+    preview_columns = st.columns(min(len(uploaded_images), 2))
+    for index, image in enumerate(uploaded_images):
+        with preview_columns[index % len(preview_columns)]:
+            st.image(image, caption=f"待识别图片 {index + 1}", width="stretch")
 
 result = st.session_state.get("recognition")
 if result:
@@ -360,23 +377,7 @@ if analysis:
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="result-block-title">🍽️ 本餐食物构成</div>', unsafe_allow_html=True)
-    composition_rows = []
-    for line in build_meal_composition(confirmed_foods).splitlines():
-        label, separator, foods_text = line.partition("：")
-        if separator:
-            composition_rows.append(
-                '<div class="composition-row">'
-                f'<span class="composition-label">{escape(label)}</span>'
-                f'<span>{escape(foods_text)}</span></div>'
-            )
-        else:
-            composition_rows.append(f'<div>{escape(ensure_sentence(line))}</div>')
-    st.markdown(f'<div class="composition-card">{"".join(composition_rows)}</div>', unsafe_allow_html=True)
-
     evidence = category_evidence(confirmed_foods)
-    st.markdown('<div class="result-block-title">基础结构检查</div>', unsafe_allow_html=True)
-    st.caption("这里检查一餐是否覆盖三项基础结构，不是新增一套食物分类。判断仅依据你确认后的食物组。")
     category_labels = (
         ("主食来源", "staple", "来自谷薯类"),
         ("蛋白质来源", "protein", "来自鱼禽肉蛋类、奶类或大豆坚果类"),

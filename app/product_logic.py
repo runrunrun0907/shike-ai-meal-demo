@@ -129,6 +129,53 @@ def normalize_foods(foods: Iterable[dict[str, object]]) -> list[dict[str, object
     return normalized
 
 
+def merge_recognition_results(results: list[dict[str, object]]) -> dict[str, object]:
+    """Merge several views of one meal without inventing new food records."""
+    analyzable_results = [result for result in results if result.get("analyzable")]
+    if not analyzable_results:
+        return results[0] if results else {"analyzable": False, "rejection_reason": "other", "foods": []}
+
+    foods_by_name: dict[str, dict[str, object]] = {}
+    uncertain_items: list[dict[str, object]] = []
+    uncertain_keys: set[tuple[str, str]] = set()
+    for result in analyzable_results:
+        for food in result.get("foods") or []:
+            name = str(food.get("name", "")).strip()
+            if not name:
+                continue
+            key = name.casefold()
+            if key not in foods_by_name:
+                foods_by_name[key] = dict(food)
+                continue
+            existing = foods_by_name[key]
+            categories: list[str] = []
+            for source in (existing, food):
+                values = source.get("categories", source.get("category", []))
+                if isinstance(values, str):
+                    values = [values]
+                for value in values or []:
+                    if value and value not in categories:
+                        categories.append(str(value))
+            if categories:
+                existing["categories"] = categories
+
+        for item in result.get("uncertain_items") or []:
+            item_key = (
+                str(item.get("description", "")).strip(),
+                str(item.get("reason", "")).strip(),
+            )
+            if item_key not in uncertain_keys:
+                uncertain_keys.add(item_key)
+                uncertain_items.append(dict(item))
+
+    return {
+        **analyzable_results[0],
+        "analyzable": True,
+        "foods": list(foods_by_name.values()),
+        "uncertain_items": uncertain_items,
+    }
+
+
 def group_foods(foods: Iterable[dict[str, object]]) -> OrderedDict[str, list[str]]:
     grouped: OrderedDict[str, list[str]] = OrderedDict((category, []) for category in FOOD_CATEGORIES)
     for food in foods:

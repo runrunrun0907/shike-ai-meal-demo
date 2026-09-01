@@ -18,11 +18,37 @@ from product_logic import (  # noqa: E402
     category_evidence,
     ensure_sentence,
     infer_food_categories,
+    merge_recognition_results,
     normalize_foods,
 )
 
 
 class ProductLogicTests(unittest.TestCase):
+    def test_multiple_recognition_results_are_merged_without_duplicate_foods(self) -> None:
+        merged = merge_recognition_results(
+            [
+                {
+                    "analyzable": True,
+                    "foods": [
+                        {"name": "白米饭", "categories": ["谷薯类"]},
+                        {"name": "番茄鸡蛋汤", "categories": ["蔬菜"]},
+                    ],
+                    "uncertain_items": [],
+                },
+                {
+                    "analyzable": True,
+                    "foods": [
+                        {"name": "番茄鸡蛋汤", "categories": ["鱼禽肉蛋类", "蔬菜"]},
+                        {"name": "清炒油麦菜", "categories": ["蔬菜"]},
+                    ],
+                    "uncertain_items": [],
+                },
+            ]
+        )
+        self.assertTrue(merged["analyzable"])
+        self.assertEqual([food["name"] for food in merged["foods"]], ["白米饭", "番茄鸡蛋汤", "清炒油麦菜"])
+        self.assertEqual(merged["foods"][1]["categories"], ["蔬菜", "鱼禽肉蛋类"])
+
     def test_single_food_groups(self) -> None:
         self.assertEqual(infer_food_categories("白米饭"), ["谷薯类"])
         self.assertEqual(infer_food_categories("白切鸡"), ["鱼禽肉蛋类"])
