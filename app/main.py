@@ -244,6 +244,16 @@ if result:
         }.get(result.get("rejection_reason"), "这张图片暂时无法分析，请重新上传。")
         st.warning(reason_text)
     else:
+        source_count = int(result.get("source_count") or 1)
+        analyzable_count = int(result.get("analyzable_count") or source_count)
+        if source_count > 1:
+            if analyzable_count == source_count:
+                st.success(f"已综合 {source_count} 张图片的识别结果，请继续确认食物列表。")
+            else:
+                st.warning(
+                    f"已使用其中 {analyzable_count}/{source_count} 张可分析图片；"
+                    "其余图片因模糊、主体不完整或并非餐食而未参与合并。"
+                )
         st.markdown('<div class="section-title">确认识别结果</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="edit-guide"><strong>✏️ 请确认识别结果</strong><br>'

@@ -129,11 +129,34 @@ def normalize_foods(foods: Iterable[dict[str, object]]) -> list[dict[str, object
     return normalized
 
 
+FOOD_NAME_ALIASES = {
+    "米饭": "白米饭",
+    "白饭": "白米饭",
+    "白米饭": "白米饭",
+    "西红柿炒鸡蛋": "番茄炒蛋",
+    "番茄炒鸡蛋": "番茄炒蛋",
+    "番茄炒蛋": "番茄炒蛋",
+}
+
+
+def _food_identity_key(name: str) -> str:
+    """Return a conservative identity key for deduplicating multiple views."""
+    compact_name = "".join(str(name).strip().casefold().split())
+    return FOOD_NAME_ALIASES.get(compact_name, compact_name)
+
+
 def merge_recognition_results(results: list[dict[str, object]]) -> dict[str, object]:
     """Merge several views of one meal without inventing new food records."""
     analyzable_results = [result for result in results if result.get("analyzable")]
     if not analyzable_results:
-        return results[0] if results else {"analyzable": False, "rejection_reason": "other", "foods": []}
+        fallback = dict(results[0]) if results else {
+            "analyzable": False,
+            "rejection_reason": "other",
+            "foods": [],
+        }
+        fallback["source_count"] = len(results)
+        fallback["analyzable_count"] = 0
+        return fallback
 
     foods_by_name: dict[str, dict[str, object]] = {}
     uncertain_items: list[dict[str, object]] = []
@@ -143,7 +166,7 @@ def merge_recognition_results(results: list[dict[str, object]]) -> dict[str, obj
             name = str(food.get("name", "")).strip()
             if not name:
                 continue
-            key = name.casefold()
+            key = _food_identity_key(name)
             if key not in foods_by_name:
                 foods_by_name[key] = dict(food)
                 continue
@@ -173,6 +196,13 @@ def merge_recognition_results(results: list[dict[str, object]]) -> dict[str, obj
         "analyzable": True,
         "foods": list(foods_by_name.values()),
         "uncertain_items": uncertain_items,
+        "source_count": len(results),
+        "analyzable_count": len(analyzable_results),
+        "rejected_reasons": [
+            str(result.get("rejection_reason") or "other")
+            for result in results
+            if not result.get("analyzable")
+        ],
     }
 
 

@@ -48,6 +48,57 @@ class ProductLogicTests(unittest.TestCase):
         self.assertTrue(merged["analyzable"])
         self.assertEqual([food["name"] for food in merged["foods"]], ["白米饭", "番茄鸡蛋汤", "清炒油麦菜"])
         self.assertEqual(merged["foods"][1]["categories"], ["蔬菜", "鱼禽肉蛋类"])
+        self.assertEqual(merged["source_count"], 2)
+        self.assertEqual(merged["analyzable_count"], 2)
+
+    def test_multiple_views_merge_only_conservative_food_aliases(self) -> None:
+        merged = merge_recognition_results(
+            [
+                {
+                    "analyzable": True,
+                    "foods": [{"name": "米饭", "category": "主食"}],
+                },
+                {
+                    "analyzable": True,
+                    "foods": [
+                        {"name": "白米饭", "category": "主食"},
+                        {"name": "番茄鸡蛋汤", "category": "其他"},
+                    ],
+                },
+            ]
+        )
+        self.assertEqual([food["name"] for food in merged["foods"]], ["米饭", "番茄鸡蛋汤"])
+
+    def test_partial_multi_image_failure_is_reported_without_losing_valid_foods(self) -> None:
+        merged = merge_recognition_results(
+            [
+                {
+                    "analyzable": False,
+                    "rejection_reason": "blurred",
+                    "foods": [],
+                },
+                {
+                    "analyzable": True,
+                    "foods": [{"name": "白粥", "category": "主食"}],
+                },
+            ]
+        )
+        self.assertTrue(merged["analyzable"])
+        self.assertEqual([food["name"] for food in merged["foods"]], ["白粥"])
+        self.assertEqual(merged["source_count"], 2)
+        self.assertEqual(merged["analyzable_count"], 1)
+        self.assertEqual(merged["rejected_reasons"], ["blurred"])
+
+    def test_all_failed_multi_image_results_keep_failure_metadata(self) -> None:
+        merged = merge_recognition_results(
+            [
+                {"analyzable": False, "rejection_reason": "blurred", "foods": []},
+                {"analyzable": False, "rejection_reason": "subject_missing", "foods": []},
+            ]
+        )
+        self.assertFalse(merged["analyzable"])
+        self.assertEqual(merged["source_count"], 2)
+        self.assertEqual(merged["analyzable_count"], 0)
 
     def test_single_food_groups(self) -> None:
         self.assertEqual(infer_food_categories("白米饭"), ["谷薯类"])
