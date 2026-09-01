@@ -12,6 +12,8 @@
 
 - 两阶段 AI 工作流：将视觉识别与餐食分析解耦。
 - 人机协同：用户可以修改、删除或补充 AI 识别结果。
+- 智能类别整理：采用常见食物规则优先、用户最终确认的方式，修改名称后可一键更新类别。
+- 两层解释：确认页使用主食、蛋白质类、蔬菜、水果、混合菜、其他六类；分析页再解释具体食物对餐食结构的贡献，避免把食物与营养素混为一谈。
 - 不确定性表达：模糊配料进入不确定项，不强行猜测具体食材。
 - 安全边界：不估算缺乏依据的克重、热量和营养素，不提供医疗诊断。
 - 可复现评测：覆盖清晰餐食、复杂餐食、模糊图片、主体缺失及三类结构分析场景。
@@ -38,13 +40,14 @@ export COZE_API_TOKEN="在本机填写你的 Token"
 streamlit run streamlit_app.py
 ```
 
-页面目前支持图片上传、Base64 Data URL 调用 `meal_recognition_v2`、失败提示、可编辑食物列表和不确定项展示；确认食物后会调用 `meal_analysis_v2`，展示餐食结构、主要问题、行动建议与安全说明。真实 Token 不得写入 `.env.example` 或提交到版本库。
+页面目前支持图片上传、Base64 Data URL 调用 `meal_recognition_v2`、失败提示、可编辑食物列表、显式添加/删除、智能类别整理和不确定项展示；确认食物后会调用 `meal_analysis_v2`，并以具体食物展示本餐构成、结构依据、主要问题、行动建议、条件式食物科普与安全说明。真实 Token 不得写入 `.env.example` 或提交到版本库。
 
 ## 自动评测
 
 ```bash
 .venv/bin/python evaluation/evaluate_recognition.py
 .venv/bin/python evaluation/evaluate_analysis.py
+.venv/bin/python -m unittest evaluation/test_product_logic.py
 ```
 
 首轮评测结果：识别核心分支 `4/4` 通过，分析核心场景 `3/3` 通过。详细结果保存在 `evaluation/`。
