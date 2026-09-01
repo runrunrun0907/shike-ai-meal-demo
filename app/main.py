@@ -14,6 +14,7 @@ try:
         build_knowledge_tips,
         build_meal_composition,
         category_evidence,
+        ensure_sentence,
         infer_food_category,
         normalize_foods,
     )
@@ -25,6 +26,7 @@ except ModuleNotFoundError:
         build_knowledge_tips,
         build_meal_composition,
         category_evidence,
+        ensure_sentence,
         infer_food_category,
         normalize_foods,
     )
@@ -48,9 +50,10 @@ st.markdown(
     """
     <style>
     [data-testid="stToolbar"], #MainMenu, footer {display: none !important;}
+    [data-testid="stHeader"] {height: 0 !important; min-height: 0 !important; background: transparent !important;}
     .stApp {background: linear-gradient(180deg, #f5faf6 0, #ffffff 300px);}
-    .block-container {max-width: 860px; padding-top: 2.4rem; padding-bottom: 4rem;}
-    .hero {padding: 1.65rem 1.75rem; border: 1px solid #dceadf; border-radius: 24px;
+    .block-container {max-width: 860px; padding-top: .65rem; padding-bottom: 4rem;}
+    .hero {padding: 1.35rem 1.55rem; border: 1px solid #dceadf; border-radius: 24px;
       background: rgba(255,255,255,.92); box-shadow: 0 12px 36px rgba(38,84,55,.08);}
     .hero-kicker {color: #2e8b57; font-size: .84rem; font-weight: 700; letter-spacing: .12em;}
     .hero h1 {font-size: 2.15rem; margin: .35rem 0 .55rem; color: #1f2d25;}
@@ -66,6 +69,9 @@ st.markdown(
       background: #eef7f1; border: 1px solid #d2e8d8; color: #315c40; line-height: 1.65;}
     .composition-card {margin: .55rem 0 1.1rem; padding: 1rem 1.1rem; border-radius: 16px;
       background: #f8fbf8; border: 1px solid #dce9df; color: #34453b; line-height: 1.75;}
+    .composition-row {display: grid; grid-template-columns: 6.5rem 1fr; gap: .75rem; padding: .35rem 0;}
+    .composition-row + .composition-row {border-top: 1px solid #e6eee8;}
+    .composition-label {font-weight: 750; color: #276b45;}
     .structure-card {border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
     .structure-label {color: #6d7a72; font-size: .86rem; margin-bottom: .28rem;}
@@ -88,12 +94,17 @@ st.markdown(
     [data-testid="stCaptionContainer"] {line-height: 1.7;}
     div.stButton > button[kind="primary"] {border-radius: 12px; min-height: 3rem; font-weight: 700;}
     div[data-testid="stFileUploader"] {border: 1px dashed #9fc7aa; border-radius: 16px; padding: .35rem;}
+    [data-testid="stImage"] {display: flex; justify-content: center;}
+    [data-testid="stImage"] img {width: auto !important; max-width: 100% !important;
+      max-height: 360px !important; object-fit: contain !important;}
     @media (max-width: 640px) {
-      .block-container {padding: 1rem .85rem 3rem;}
+      .block-container {padding: .45rem .85rem 3rem;}
       .hero {padding: 1.25rem; border-radius: 18px;}
       .hero h1 {font-size: 1.72rem;}
-      .steps {grid-template-columns: 1fr; gap: .45rem;}
-      .step {text-align: left;}
+      .steps {grid-template-columns: repeat(3, 1fr); gap: .35rem;}
+      .step {padding: .62rem .35rem; font-size: .78rem;}
+      .step span {display: none;}
+      .composition-row {grid-template-columns: 5.5rem 1fr;}
       .structure-card {margin-bottom: .5rem; padding: .85rem;}
       .section-title {font-size: 1.18rem;}
       .result-block-title {font-size: 1.08rem; margin-top: 1.1rem;}
@@ -176,9 +187,6 @@ file_too_large = uploaded is not None and uploaded.size > MAX_FILE_SIZE
 if file_too_large:
     st.error("图片超过 10 MB，请压缩后重新上传。")
 
-if uploaded and not file_too_large:
-    st.image(uploaded, caption="待识别图片", width="stretch")
-
 if st.button("开始识别", type="primary", disabled=uploaded is None or file_too_large):
     if not token:
         st.error("尚未配置 COZE_API_TOKEN。请在本机环境变量或 Streamlit Secrets 中配置，勿写入代码。")
@@ -196,6 +204,9 @@ if st.button("开始识别", type="primary", disabled=uploaded is None or file_t
             st.rerun()
         except (CozeAPIError, ValueError) as exc:
             st.error(friendly_error(exc))
+
+if uploaded and not file_too_large:
+    st.image(uploaded, caption="待识别图片", width="stretch")
 
 result = st.session_state.get("recognition")
 if result:
@@ -284,7 +295,7 @@ if result:
 
         editor_notice = st.session_state.pop("editor_notice", None)
         if editor_notice:
-            st.success(editor_notice)
+            st.toast(editor_notice, icon="✅")
 
         category_mismatches = [
             (row["name"], row["category"], infer_food_category(row["name"], row["category"]))
@@ -301,9 +312,10 @@ if result:
         if uncertain:
             with st.expander(f"有 {len(uncertain)} 项暂时无法确认", expanded=True):
                 for item in uncertain:
-                    st.write(f"- {item.get('description', '不确定食材')}：{item.get('reason', '无法确认具体种类')}")
+                    description = item.get("description", "不确定食材")
+                    reason = ensure_sentence(item.get("reason", "无法确认具体种类"))
+                    st.write(f"- {description}：{reason}")
 
-        st.info("确认前请检查食物名称与类别。最终分析将以你确认后的列表为准。")
         analysis_exists = bool(st.session_state.get("analysis"))
         action_label = "保存修改并重新分析" if analysis_exists else "确认食物列表，进入分析"
         if st.button(action_label, type="primary"):
@@ -335,15 +347,23 @@ if analysis:
     st.divider()
     st.markdown('<div class="section-title">餐食结构分析</div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="result-summary">{escape(analysis.get("meal_summary", ""))}</div>',
+        f'<div class="result-summary">{escape(ensure_sentence(analysis.get("meal_summary", "")))}</div>',
         unsafe_allow_html=True,
     )
 
     st.markdown('<div class="result-block-title">🍽️ 本餐食物构成</div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="composition-card">{escape(build_meal_composition(confirmed_foods))}</div>',
-        unsafe_allow_html=True,
-    )
+    composition_rows = []
+    for line in build_meal_composition(confirmed_foods).splitlines():
+        label, separator, foods_text = line.partition("：")
+        if separator:
+            composition_rows.append(
+                '<div class="composition-row">'
+                f'<span class="composition-label">{escape(label)}</span>'
+                f'<span>{escape(foods_text)}</span></div>'
+            )
+        else:
+            composition_rows.append(f'<div>{escape(ensure_sentence(line))}</div>')
+    st.markdown(f'<div class="composition-card">{"".join(composition_rows)}</div>', unsafe_allow_html=True)
 
     structure = analysis.get("meal_structure") or {}
     evidence = category_evidence(confirmed_foods)
@@ -355,12 +375,12 @@ if analysis:
     category_labels = (("主食", "staple"), ("蛋白质", "protein"), ("蔬菜", "vegetables"))
     columns = st.columns(3)
     for column, (label, key) in zip(columns, category_labels):
-        value = state_labels.get(structure.get(key), "暂无法判断")
+        value = "已包含" if evidence.get(key) else state_labels.get(structure.get(key), "暂无法判断")
         evidence_text = "、".join(evidence.get(key) or []) or "食物列表中未明显看到"
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
             f'<div class="structure-value">{escape(value)}</div>'
-            f'<div class="structure-evidence">{escape(evidence_text)}</div></div>',
+            f'<div class="structure-evidence">依据：{escape(ensure_sentence(evidence_text))}</div></div>',
             unsafe_allow_html=True,
         )
 
@@ -371,7 +391,7 @@ if analysis:
             st.markdown(
                 '<div class="issue-card">'
                 f'<div class="card-title">{escape(issue.get("dimension", "餐食结构"))}</div>'
-                f'{escape(issue.get("message", ""))}</div>',
+                f'{escape(ensure_sentence(issue.get("message", "")))}</div>',
                 unsafe_allow_html=True,
             )
     else:
@@ -391,7 +411,7 @@ if analysis:
             st.markdown(
                 '<div class="suggestion-card">'
                 f'<div class="card-title">{prefix}{escape(suggestion.get("title", "调整建议"))}</div>'
-                f'{escape(suggestion.get("action", ""))}</div>',
+                f'{escape(ensure_sentence(suggestion.get("action", "")))}</div>',
                 unsafe_allow_html=True,
             )
 
@@ -399,7 +419,7 @@ if analysis:
     if friendly_report:
         st.markdown('<div class="result-block-title">📝 给你的餐食小结</div>', unsafe_allow_html=True)
         st.markdown(
-            f'<div class="report-card">{escape(friendly_report)}</div>',
+            f'<div class="report-card">{escape(ensure_sentence(friendly_report))}</div>',
             unsafe_allow_html=True,
         )
 
@@ -407,13 +427,13 @@ if analysis:
     if knowledge_tips:
         st.markdown('<div class="result-block-title">💡 食物小知识</div>', unsafe_allow_html=True)
         for tip in knowledge_tips:
-            st.markdown(f'<div class="knowledge-card">{escape(tip)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="knowledge-card">{escape(ensure_sentence(tip))}</div>', unsafe_allow_html=True)
 
     with st.expander("分析说明与使用范围"):
         if analysis.get("limitations"):
-            st.caption(analysis["limitations"])
+            st.caption(ensure_sentence(analysis["limitations"]))
         if analysis.get("safety_note"):
-            st.caption(analysis["safety_note"])
+            st.caption(ensure_sentence(analysis["safety_note"]))
 
     st.markdown('<div class="result-block-title">接下来</div>', unsafe_allow_html=True)
     back_col, restart_col = st.columns(2)

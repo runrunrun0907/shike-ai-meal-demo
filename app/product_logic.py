@@ -18,7 +18,7 @@ PROTEIN_WORDS = (
 VEGETABLE_WORDS = (
     "油麦菜", "青菜", "菠菜", "生菜", "白菜", "西兰花", "菜花", "番茄", "西红柿",
     "黄瓜", "冬瓜", "南瓜", "茄子", "胡萝卜", "白萝卜", "芹菜", "蒜薹", "蒜苔",
-    "韭菜", "豆角", "四季豆", "莴笋", "竹笋", "香菇", "蘑菇", "菌菇", "木耳",
+    "韭菜", "辣椒", "青椒", "彩椒", "豆角", "四季豆", "莴笋", "竹笋", "香菇", "蘑菇", "菌菇", "木耳",
 )
 FRUIT_WORDS = (
     "苹果", "香蕉", "橙", "橘", "柚子", "梨", "葡萄", "草莓", "蓝莓", "西瓜",
@@ -126,8 +126,18 @@ def build_meal_composition(foods: Iterable[dict[str, str]]) -> str:
     parts = []
     for category, names in grouped.items():
         if names:
-            parts.append(f"{category}：{'、'.join(names)}")
-    return "；".join(parts) + "。" if parts else "暂时没有可分析的食物。"
+            parts.append(f"{category}：{'、'.join(names)}。")
+    return "\n".join(parts) if parts else "暂时没有可分析的食物。"
+
+
+def ensure_sentence(text: str) -> str:
+    """Normalize user-facing prose to one consistently punctuated sentence."""
+    clean_text = str(text or "").strip().rstrip("~～")
+    if not clean_text:
+        return ""
+    if clean_text.endswith(("。", "！", "？")):
+        return clean_text
+    return f"{clean_text.rstrip('.!?')}。"
 
 
 def build_knowledge_tips(foods: Iterable[dict[str, str]]) -> list[str]:
