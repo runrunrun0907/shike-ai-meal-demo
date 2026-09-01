@@ -452,7 +452,12 @@ if analysis:
     if knowledge_tips:
         st.markdown('<div class="result-block-title">💡 食物小知识</div>', unsafe_allow_html=True)
         for tip in knowledge_tips:
-            st.markdown(f'<div class="knowledge-card">{escape(ensure_sentence(tip))}</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="knowledge-card">'
+                f'<div class="card-title">{escape(tip["title"])}</div>'
+                f'{escape(ensure_sentence(tip["message"]))}</div>',
+                unsafe_allow_html=True,
+            )
 
     with st.expander("分析说明与使用范围"):
         if analysis.get("limitations"):

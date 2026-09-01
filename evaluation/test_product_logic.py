@@ -29,6 +29,7 @@ class ProductLogicTests(unittest.TestCase):
         self.assertEqual(infer_food_categories("牛奶"), ["奶类"])
         self.assertEqual(infer_food_categories("豆腐"), ["大豆坚果类"])
         self.assertEqual(infer_food_categories("清炒油麦菜"), ["蔬菜"])
+        self.assertEqual(infer_food_categories("蒸土豆"), ["谷薯类"])
 
     def test_composite_foods_keep_multiple_groups(self) -> None:
         self.assertEqual(infer_food_categories("番茄炒蛋"), ["鱼禽肉蛋类", "蔬菜"])
@@ -113,17 +114,22 @@ class ProductLogicTests(unittest.TestCase):
             ]
         )
         self.assertEqual(len(tips), 2)
-        self.assertIn("谷薯类", tips[0])
-        self.assertIn("奶类", tips[1])
+        self.assertIn("为什么仍算蔬菜", tips[0]["title"])
+        self.assertIn("含有碳水", tips[0]["message"])
+        self.assertIn("为什么不归入普通饮料", tips[1]["title"])
+        self.assertIn("食用形态", tips[1]["message"])
 
-    def test_composite_food_tip_explains_why_it_has_two_groups(self) -> None:
+    def test_obvious_composite_food_does_not_trigger_knowledge_tip(self) -> None:
         tips = build_knowledge_tips(
             [{"name": "番茄炒蛋", "categories": ["鱼禽肉蛋类", "蔬菜"]}]
         )
+        self.assertEqual(tips, [])
+
+    def test_potato_triggers_non_obvious_group_tip(self) -> None:
+        tips = build_knowledge_tips([{"name": "蒸红薯", "categories": ["谷薯类"]}])
         self.assertEqual(len(tips), 1)
-        self.assertIn("为什么番茄炒蛋会出现在两类", tips[0])
-        self.assertIn("番茄计入蔬菜", tips[0])
-        self.assertIn("鸡蛋计入鱼禽肉蛋类", tips[0])
+        self.assertIn("薯类为什么计入主食", tips[0]["title"])
+        self.assertIn("淀粉", tips[0]["message"])
 
     def test_analysis_payload_expands_multi_label_foods(self) -> None:
         payload = analysis_payload(

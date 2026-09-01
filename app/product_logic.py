@@ -10,7 +10,8 @@ FOOD_CATEGORIES = (
 
 STAPLE_WORDS = (
     "米饭", "白饭", "炒饭", "盖饭", "焖饭", "粥", "面", "粉", "面包", "馒头",
-    "包子", "饺子", "油条", "燕麦", "玉米", "红薯", "紫薯", "山药", "杂粮",
+    "包子", "饺子", "油条", "燕麦", "玉米", "土豆", "马铃薯", "红薯", "紫薯",
+    "山药", "芋头", "杂粮",
     "河粉", "米线", "卷饼", "烧饼", "年糕",
 )
 ANIMAL_WORDS = (
@@ -228,20 +229,34 @@ def build_risk_alerts(foods: Iterable[dict[str, object]]) -> list[dict[str, str]
     return alerts
 
 
-def build_knowledge_tips(foods: Iterable[dict[str, object]]) -> list[str]:
+def build_knowledge_tips(foods: Iterable[dict[str, object]]) -> list[dict[str, str]]:
+    """Return only genuinely non-obvious, food-specific classification notes."""
     names = [str(food.get("name", "")).strip() for food in foods]
     tips = []
     if any("蒜薹" in name or "蒜苔" in name for name in names):
-        tips.append("蒜薹归入蔬菜。它含有碳水化合物，但“含有碳水”不等于“属于谷薯类”。")
+        tips.append({
+            "title": "蒜薹含碳水，为什么仍算蔬菜？",
+            "message": "蒜薹确实含有碳水化合物，但“含有碳水”不等于“属于主食”。"
+            "按食物类别，它属于葱蒜类蔬菜，因此本餐仍计入蔬菜。",
+        })
+    if any(_contains_any(name, ("土豆", "马铃薯", "红薯", "紫薯", "山药", "芋头")) for name in names):
+        tips.append({
+            "title": "薯类为什么计入主食？",
+            "message": "土豆、红薯、山药等薯类常被当作配菜，但它们通常能提供较多淀粉。"
+            "本项目把薯类计入谷薯类；如果一餐已经吃了较多薯类，可以相应调整米饭或面食。",
+        })
     if any("牛奶" in name for name in names):
-        tips.append("牛奶归入奶类。它可以提供蛋白质和钙，但食物类别不等同于单一营养素。")
-    if any(("番茄" in name or "西红柿" in name) and "蛋" in name for name in names):
-        tips.append(
-            "为什么番茄炒蛋会出现在两类？因为番茄计入蔬菜，鸡蛋计入鱼禽肉蛋类；"
-            "它是一道复合菜，所以会同时参与蔬菜和蛋白质来源的结构判断。"
-        )
+        tips.append({
+            "title": "牛奶是饮品，为什么不归入普通饮料？",
+            "message": "“饮品”描述的是食用形态，“奶类”描述的是食物类别。"
+            "牛奶在餐食结构中计入奶类，也可以作为蛋白质来源之一。",
+        })
     if any("坚果" in name or name in ("花生", "核桃", "腰果", "杏仁") for name in names):
-        tips.append("坚果归入大豆坚果类，通常以脂肪贡献为主，也能提供部分蛋白质。")
+        tips.append({
+            "title": "坚果含脂肪，为什么仍单独归类？",
+            "message": "坚果通常含有较多脂肪，也能提供部分蛋白质。"
+            "“脂肪”是营养素，不是食物类别，因此本项目仍把它归入大豆坚果类。",
+        })
     return tips[:2]
 
 
