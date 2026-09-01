@@ -19,6 +19,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
+current_step = 3 if st.session_state.get("analysis") else 2 if st.session_state.get("recognition") else 1
+
 st.markdown(
     """
     <style>
@@ -31,26 +36,26 @@ st.markdown(
     .hero h1 {font-size: 2.15rem; margin: .35rem 0 .55rem; color: #1f2d25;}
     .hero p {margin: 0; color: #617067; font-size: 1rem; line-height: 1.75;}
     .steps {display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin: 1rem 0 1.6rem;}
-    .step {background: #edf6ef; color: #365342; border-radius: 14px; padding: .78rem .9rem;
-      font-size: .9rem; text-align: center; font-weight: 600;}
+    .step {background: #f5f7f5; color: #738078; border: 1px solid #e5ebe6; border-radius: 14px;
+      padding: .78rem .9rem; font-size: .9rem; text-align: center; font-weight: 600;}
     .step span {display: inline-grid; place-items: center; width: 1.45rem; height: 1.45rem;
-      margin-right: .32rem; border-radius: 50%; background: #2e8b57; color: white;}
+      margin-right: .32rem; border-radius: 50%; background: #c9d2cc; color: white;}
     .section-title {margin-top: 1.2rem; color: #24302a; font-size: 1.3rem; font-weight: 750;}
     .privacy-note {margin: -.25rem 0 1rem; color: #718078; font-size: .82rem;}
     .structure-card {border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
     .structure-label {color: #6d7a72; font-size: .86rem; margin-bottom: .28rem;}
     .structure-value {color: #267c4d; font-size: 1.18rem; font-weight: 750;}
-    .result-summary {margin: .35rem 0 1.35rem; color: #34453b; font-size: 1.04rem; line-height: 1.85;}
-    .result-block-title {margin: 1.7rem 0 .7rem; color: #24302a; font-size: 1.22rem; font-weight: 750;}
+    .result-summary {margin: .25rem 0 1.05rem; color: #34453b; font-size: 1.04rem; line-height: 1.72;}
+    .result-block-title {margin: 1.35rem 0 .55rem; color: #24302a; font-size: 1.18rem; font-weight: 750;}
     .praise-card, .issue-card, .suggestion-card {border-radius: 16px; padding: .9rem 1.1rem;
-      line-height: 1.8; margin: .65rem 0;}
+      line-height: 1.72; margin: .55rem 0;}
     .praise-card {background: #edf8f0; border: 1px solid #cfe7d5; color: #246b43;}
     .issue-card {background: #fffbeb; border: 1px solid #f0e2ad; color: #80620a;}
     .suggestion-card {background: #f8fbf8; border: 1px solid #dce9df; color: #34453b;}
     .report-card {background: linear-gradient(135deg, #edf8f0, #f7fbf8); border: 1px solid #cfe7d5;
       border-left: 4px solid #43a36b; border-radius: 16px; padding: 1rem 1.15rem;
-      color: #246b43; line-height: 1.85;}
+      color: #246b43; line-height: 1.72;}
     .card-title {font-weight: 750; margin-bottom: .22rem; color: inherit;}
     [data-testid="stMarkdownContainer"] p {line-height: 1.75;}
     [data-testid="stCaptionContainer"] {line-height: 1.7;}
@@ -62,6 +67,11 @@ st.markdown(
       .hero h1 {font-size: 1.72rem;}
       .steps {grid-template-columns: 1fr; gap: .45rem;}
       .step {text-align: left;}
+      .structure-card {margin-bottom: .5rem; padding: .85rem;}
+      .section-title {font-size: 1.18rem;}
+      .result-block-title {font-size: 1.08rem; margin-top: 1.1rem;}
+      .result-summary, .praise-card, .issue-card, .suggestion-card, .report-card {line-height: 1.62;}
+      div.stButton > button {width: 100%;}
     }
     </style>
     <div class="hero">
@@ -78,6 +88,23 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+completed_steps = range(1, current_step)
+completed_css = "\n".join(
+    f".step:nth-child({step}) {{background:#edf8f0;color:#2f6f48;border-color:#cfe7d5;}}"
+    f".step:nth-child({step}) span {{background:#43a36b;font-size:0;}}"
+    f'.step:nth-child({step}) span::after {{content:"✓";font-size:.85rem;}}'
+    for step in completed_steps
+)
+st.markdown(
+    f"""<style>
+    {completed_css}
+    .step:nth-child({current_step}) {{background:#e6f4ea;color:#245f3d;border-color:#96caaa;
+      box-shadow:0 4px 14px rgba(46,139,87,.10);}}
+    .step:nth-child({current_step}) span {{background:#2e8b57;}}
+    </style>""",
+    unsafe_allow_html=True,
+)
+
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
 def setting(name: str, default: str = "") -> str:
@@ -88,15 +115,27 @@ token = setting("COZE_API_TOKEN")
 workflow_url = setting("COZE_WORKFLOW_URL", "https://nwgs6rtrn3.coze.site/run")
 analysis_url = setting("COZE_ANALYSIS_URL", "https://f567znb64x.coze.site/run")
 
-if "uploader_key" not in st.session_state:
-    st.session_state["uploader_key"] = 0
-
-if st.session_state.get("recognition"):
+if st.session_state.get("recognition") and not st.session_state.get("analysis"):
     if st.button("↻ 分析另一餐"):
         for key in ("recognition", "analysis", "confirmed_foods", "foods_editor"):
             st.session_state.pop(key, None)
         st.session_state["uploader_key"] += 1
         st.rerun()
+
+
+def friendly_error(exc: Exception) -> str:
+    status_code = getattr(exc, "status_code", None)
+    if status_code == 402:
+        return "AI 服务当前暂不可用，请稍后再试。"
+    if status_code in (401, 403):
+        return "AI 服务配置暂时不可用，请联系维护者。"
+    if status_code == 429:
+        return "当前使用人数较多，请稍后再试。"
+    if status_code and status_code >= 500:
+        return "AI 服务暂时繁忙，请稍后再试。"
+    if isinstance(exc, ValueError):
+        return "AI 返回结果暂时无法读取，请再试一次。"
+    return "连接 AI 服务时出现问题，请稍后重试。"
 
 uploaded = st.file_uploader(
     "上传一张餐食图片",
@@ -118,14 +157,15 @@ if st.button("开始识别", type="primary", disabled=uploaded is None or file_t
     else:
         try:
             with st.status("正在识别图片……", expanded=True) as status:
-                st.write("调用 meal_recognition_v2")
+                st.write("正在查看图片中的餐食，请稍候。")
                 result = run_recognition(workflow_url, token, uploaded.getvalue(), uploaded.type)
                 st.session_state["recognition"] = result
                 st.session_state.pop("analysis", None)
                 st.session_state.pop("confirmed_foods", None)
                 status.update(label="识别完成", state="complete", expanded=False)
+            st.rerun()
         except (CozeAPIError, ValueError) as exc:
-            st.error(str(exc))
+            st.error(friendly_error(exc))
 
 result = st.session_state.get("recognition")
 if result:
@@ -181,13 +221,14 @@ if result:
             else:
                 try:
                     with st.status("正在分析餐食结构……", expanded=True) as status:
-                        st.write("调用 meal_analysis_v2")
+                        st.write("正在整理这餐的结构与建议，请稍候。")
                         analysis = run_analysis(analysis_url, token, confirmed)
                         st.session_state["confirmed_foods"] = confirmed
                         st.session_state["analysis"] = analysis
                         status.update(label="分析完成", state="complete", expanded=False)
+                    st.rerun()
                 except (CozeAPIError, ValueError) as exc:
-                    st.error(str(exc))
+                    st.error(friendly_error(exc))
 
 analysis = st.session_state.get("analysis")
 if analysis:
@@ -253,9 +294,21 @@ if analysis:
             unsafe_allow_html=True,
         )
 
-    if analysis.get("limitations"):
-        st.caption(f"分析说明：{analysis['limitations']}")
-    if analysis.get("safety_note"):
-        st.caption(analysis["safety_note"])
+    with st.expander("分析说明与使用范围"):
+        if analysis.get("limitations"):
+            st.caption(analysis["limitations"])
+        if analysis.get("safety_note"):
+            st.caption(analysis["safety_note"])
 
-    st.caption("识别或建议不准确？可以在上方修改食物列表，再点击“保存修改并重新分析”。")
+    st.markdown('<div class="result-block-title">接下来</div>', unsafe_allow_html=True)
+    back_col, restart_col = st.columns(2)
+    with back_col:
+        if st.button("返回修改食物", use_container_width=True):
+            st.session_state.pop("analysis", None)
+            st.rerun()
+    with restart_col:
+        if st.button("分析另一餐", type="primary", use_container_width=True):
+            for key in ("recognition", "analysis", "confirmed_foods", "foods_editor"):
+                st.session_state.pop(key, None)
+            st.session_state["uploader_key"] += 1
+            st.rerun()

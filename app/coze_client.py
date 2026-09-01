@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import base64
-from typing import Any
+import time
+from typing import Any, Optional
 
 import requests
 
@@ -10,9 +11,32 @@ import requests
 class CozeAPIError(RuntimeError):
     """Raised when the Coze upload or workflow API returns an unusable response."""
 
+    def __init__(self, message: str, status_code: Optional[int] = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+
+
+def _post_with_retry(url: str, **kwargs: Any) -> requests.Response:
+    """Retry one transient network or service failure."""
+    last_error: Optional[requests.RequestException] = None
+    for attempt in range(2):
+        try:
+            response = requests.post(url, **kwargs)
+            if response.status_code not in RETRYABLE_STATUS_CODES or attempt == 1:
+                return response
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt == 1:
+                raise CozeAPIError("网络连接失败，请稍后重试。") from exc
+        time.sleep(0.8)
+    raise CozeAPIError("网络连接失败，请稍后重试。") from last_error
+
 
 def upload_file(file_bytes: bytes, filename: str, mime_type: str, token: str, upload_url: str) -> str:
-    response = requests.post(
+    response = _post_with_retry(
         upload_url,
         headers={"Authorization": f"Bearer {token}"},
         files={"file": (filename, file_bytes, mime_type)},
@@ -34,7 +58,7 @@ def run_recognition(
 ) -> dict[str, Any]:
     encoded = base64.b64encode(file_bytes).decode("ascii")
     data_url = f"data:{mime_type};base64,{encoded}"
-    response = requests.post(
+    response = _post_with_retry(
         workflow_url,
         headers={
             "Authorization": f"Bearer {token}",
@@ -52,7 +76,7 @@ def run_analysis(
     token: str,
     confirmed_foods: list[dict[str, str]],
 ) -> dict[str, Any]:
-    response = requests.post(
+    response = _post_with_retry(
         workflow_url,
         headers={
             "Authorization": f"Bearer {token}",
@@ -95,4 +119,4 @@ def _raise_for_status(response: requests.Response, prefix: str) -> None:
     if response.ok:
         return
     body = response.text[:1000]
-    raise CozeAPIError(f"{prefix}（HTTP {response.status_code}）：{body}")
+    raise CozeAPIError(f"{prefix}（HTTP {response.status_code}）：{body}", response.status_code)
