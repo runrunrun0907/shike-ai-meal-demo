@@ -43,13 +43,14 @@ st.markdown(
     .structure-value {color: #267c4d; font-size: 1.18rem; font-weight: 750;}
     .result-summary {margin: .35rem 0 1.35rem; color: #34453b; font-size: 1.04rem; line-height: 1.85;}
     .result-block-title {margin: 1.7rem 0 .7rem; color: #24302a; font-size: 1.22rem; font-weight: 750;}
-    .praise-card, .issue-card, .suggestion-card, .report-card {border-radius: 16px; padding: 1rem 1.15rem;
+    .praise-card, .issue-card, .suggestion-card {border-radius: 16px; padding: .9rem 1.1rem;
       line-height: 1.8; margin: .65rem 0;}
     .praise-card {background: #edf8f0; border: 1px solid #cfe7d5; color: #246b43;}
     .issue-card {background: #fffbeb; border: 1px solid #f0e2ad; color: #80620a;}
-    .suggestion-card {background: #fff; border: 1px solid #dce9df; color: #34453b;
-      box-shadow: 0 5px 16px rgba(42,88,57,.05);}
-    .report-card {background: linear-gradient(135deg, #edf8f0, #f5fbf6); border: 1px solid #d2ead8; color: #237145;}
+    .suggestion-card {background: #f8fbf8; border: 1px solid #dce9df; color: #34453b;}
+    .report-card {background: linear-gradient(135deg, #edf8f0, #f7fbf8); border: 1px solid #cfe7d5;
+      border-left: 4px solid #43a36b; border-radius: 16px; padding: 1rem 1.15rem;
+      color: #246b43; line-height: 1.85;}
     .card-title {font-weight: 750; margin-bottom: .22rem; color: inherit;}
     [data-testid="stMarkdownContainer"] p {line-height: 1.75;}
     [data-testid="stCaptionContainer"] {line-height: 1.7;}
@@ -224,7 +225,7 @@ if analysis:
                 unsafe_allow_html=True,
             )
     else:
-        st.markdown('<div class="result-block-title">本餐亮点</div>', unsafe_allow_html=True)
+        st.markdown('<div class="result-block-title">✨ 本餐亮点</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="praise-card"><div class="card-title">搭配得很不错</div>'
             '主食、蛋白质和蔬菜都已包含，基础结构完整，值得继续保持。</div>',
@@ -233,7 +234,7 @@ if analysis:
 
     suggestions = analysis.get("suggestions") or []
     if suggestions:
-        heading = "一个小建议" if len(suggestions) == 1 else "可以这样调整"
+        heading = "💡 一个小建议" if len(suggestions) == 1 else "💡 可以这样调整"
         st.markdown(f'<div class="result-block-title">{heading}</div>', unsafe_allow_html=True)
         for index, suggestion in enumerate(suggestions, start=1):
             prefix = f"{index}. " if len(suggestions) > 1 else ""
@@ -246,6 +247,7 @@ if analysis:
 
     friendly_report = analysis.get("friendly_report")
     if friendly_report:
+        st.markdown('<div class="result-block-title">📝 给你的餐食小结</div>', unsafe_allow_html=True)
         st.markdown(
             f'<div class="report-card">{escape(friendly_report)}</div>',
             unsafe_allow_html=True,
