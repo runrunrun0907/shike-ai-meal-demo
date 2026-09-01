@@ -375,14 +375,21 @@ if analysis:
     st.markdown(f'<div class="composition-card">{"".join(composition_rows)}</div>', unsafe_allow_html=True)
 
     evidence = category_evidence(confirmed_foods)
-    category_labels = (("主食", "staple"), ("蛋白质", "protein"), ("蔬菜", "vegetables"))
+    st.markdown('<div class="result-block-title">基础结构检查</div>', unsafe_allow_html=True)
+    st.caption("这里检查一餐是否覆盖三项基础结构，不是新增一套食物分类。判断仅依据你确认后的食物组。")
+    category_labels = (
+        ("主食来源", "staple", "来自谷薯类"),
+        ("蛋白质来源", "protein", "来自鱼禽肉蛋类、奶类或大豆坚果类"),
+        ("蔬菜", "vegetables", "来自蔬菜类"),
+    )
     columns = st.columns(3)
-    for column, (label, key) in zip(columns, category_labels):
+    for column, (label, key, source) in zip(columns, category_labels):
         value = "已包含" if evidence.get(key) else "未明显出现"
         evidence_text = "、".join(evidence.get(key) or []) or "食物列表中未明显看到"
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
             f'<div class="structure-value">{escape(value)}</div>'
+            f'<div class="structure-evidence">{escape(source)}</div>'
             f'<div class="structure-evidence">依据：{escape(evidence_text)}</div></div>',
             unsafe_allow_html=True,
         )
@@ -390,7 +397,7 @@ if analysis:
     issues = analysis.get("main_issues") or []
     local_missing = [
         (label, f"确认后的食物列表中暂未明显看到{label}。")
-        for label, key in category_labels
+        for label, key, _source in category_labels
         if not evidence.get(key)
     ]
     if issues:

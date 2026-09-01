@@ -39,6 +39,18 @@ class ProductLogicTests(unittest.TestCase):
         self.assertEqual(infer_food_categories("蛋炒饭"), ["谷薯类", "鱼禽肉蛋类"])
         self.assertEqual(infer_food_categories("豆腐青菜"), ["大豆坚果类", "蔬菜"])
 
+    def test_mushroom_flavor_names_do_not_become_animal_foods(self) -> None:
+        self.assertEqual(infer_food_categories("海鲜菇"), ["蔬菜"])
+        self.assertEqual(infer_food_categories("蟹味菇"), ["蔬菜"])
+        self.assertEqual(
+            infer_food_categories("牛肉炒蘑菇"),
+            ["鱼禽肉蛋类", "蔬菜"],
+        )
+        self.assertEqual(
+            infer_food_categories("海鲜菇炒虾仁"),
+            ["鱼禽肉蛋类", "蔬菜"],
+        )
+
     def test_unknown_food_is_not_forced_into_a_group(self) -> None:
         self.assertEqual(infer_food_categories("深色碎末"), ["无法判断"])
 

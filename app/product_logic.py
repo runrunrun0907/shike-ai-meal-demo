@@ -19,6 +19,12 @@ ANIMAL_WORDS = (
     "鱼", "虾", "蟹", "牛肉", "猪肉", "羊肉", "瘦肉", "肉", "排骨", "海鲜", "贝类",
     "香肠", "腊肠", "火腿",
 )
+STRONG_ANIMAL_WORDS = tuple(
+    word for word in ANIMAL_WORDS if word not in ("海鲜", "鱼", "虾", "蟹")
+) + (
+    "蟹肉", "虾仁", "大虾", "鱼肉", "鱼片", "鲈鱼", "鲫鱼", "鲤鱼", "鳕鱼",
+    "三文鱼", "龙利鱼",
+)
 DAIRY_WORDS = ("牛奶", "酸奶", "奶酪", "芝士", "乳酪", "奶粉")
 SOY_NUT_WORDS = (
     "豆浆", "豆腐", "豆干", "豆皮", "腐竹", "黄豆", "黑豆", "毛豆", "坚果", "花生",
@@ -28,7 +34,7 @@ VEGETABLE_WORDS = (
     "油麦菜", "青菜", "菠菜", "生菜", "白菜", "西兰花", "菜花", "番茄", "西红柿",
     "黄瓜", "冬瓜", "南瓜", "茄子", "胡萝卜", "白萝卜", "芹菜", "蒜薹", "蒜苔",
     "韭菜", "辣椒", "青椒", "彩椒", "豆角", "四季豆", "莴笋", "竹笋", "香菇",
-    "蘑菇", "菌菇", "木耳", "紫菜", "海带", "莲藕", "娃娃菜",
+    "蘑菇", "菌菇", "菇", "木耳", "紫菜", "海带", "莲藕", "娃娃菜",
 )
 FRUIT_WORDS = (
     "苹果", "香蕉", "橙", "橘", "柚子", "梨", "葡萄", "草莓", "蓝莓", "西瓜",
@@ -80,6 +86,10 @@ def infer_food_categories(name: str, current_categories: object = None) -> list[
     if not clean_name:
         return ["无法判断"]
 
+    # 菌菇名称可能带有“海鲜”“蟹味”等风味词，不能据此判断含有海鲜。
+    mushroom_name = _contains_any(clean_name, ("菇", "菌"))
+    has_strong_animal = _contains_any(clean_name, STRONG_ANIMAL_WORDS)
+
     matched = []
     for category, words in (
         ("谷薯类", STAPLE_WORDS),
@@ -89,6 +99,8 @@ def infer_food_categories(name: str, current_categories: object = None) -> list[
         ("蔬菜", VEGETABLE_WORDS),
         ("水果", FRUIT_WORDS),
     ):
+        if category == "鱼禽肉蛋类" and mushroom_name and not has_strong_animal:
+            continue
         if _contains_any(clean_name, words):
             matched.append(category)
     if matched:
