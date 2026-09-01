@@ -41,6 +41,18 @@ st.markdown(
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
     .structure-label {color: #6d7a72; font-size: .86rem; margin-bottom: .28rem;}
     .structure-value {color: #267c4d; font-size: 1.18rem; font-weight: 750;}
+    .result-summary {margin: .35rem 0 1.35rem; color: #34453b; font-size: 1.04rem; line-height: 1.85;}
+    .result-block-title {margin: 1.7rem 0 .7rem; color: #24302a; font-size: 1.22rem; font-weight: 750;}
+    .praise-card, .issue-card, .suggestion-card, .report-card {border-radius: 16px; padding: 1rem 1.15rem;
+      line-height: 1.8; margin: .65rem 0;}
+    .praise-card {background: #edf8f0; border: 1px solid #cfe7d5; color: #246b43;}
+    .issue-card {background: #fffbeb; border: 1px solid #f0e2ad; color: #80620a;}
+    .suggestion-card {background: #fff; border: 1px solid #dce9df; color: #34453b;
+      box-shadow: 0 5px 16px rgba(42,88,57,.05);}
+    .report-card {background: linear-gradient(135deg, #edf8f0, #f5fbf6); border: 1px solid #d2ead8; color: #237145;}
+    .card-title {font-weight: 750; margin-bottom: .22rem; color: inherit;}
+    [data-testid="stMarkdownContainer"] p {line-height: 1.75;}
+    [data-testid="stCaptionContainer"] {line-height: 1.7;}
     div.stButton > button[kind="primary"] {border-radius: 12px; min-height: 3rem; font-weight: 700;}
     div[data-testid="stFileUploader"] {border: 1px dashed #9fc7aa; border-radius: 16px; padding: .35rem;}
     @media (max-width: 640px) {
@@ -129,23 +141,20 @@ if result:
         st.caption("AI 可能会把菜品分得过细。请修改、删除或补充后再确认。")
 
         foods = result.get("foods") or []
-        table = pd.DataFrame(foods, columns=["id", "name", "category", "confidence", "evidence"])
+        table = pd.DataFrame(foods, columns=["name", "category"])
+        table.index = range(1, len(table) + 1)
         edited = st.data_editor(
             table,
-            hide_index=True,
+            hide_index=False,
             num_rows="dynamic",
             column_config={
-                "id": st.column_config.TextColumn("编号", disabled=True),
+                "_index": st.column_config.NumberColumn("编号", disabled=True),
                 "name": st.column_config.TextColumn("食物名称", required=True),
                 "category": st.column_config.SelectboxColumn(
                     "类别",
                     options=["主食", "蛋白质", "蔬菜", "水果", "奶豆坚果", "饮品", "其他"],
                     required=True,
                 ),
-                "confidence": st.column_config.SelectboxColumn(
-                    "置信度", options=["high", "medium"], disabled=True
-                ),
-                "evidence": st.column_config.TextColumn("识别依据", disabled=True),
             },
             width="stretch",
             key="foods_editor",
@@ -183,7 +192,10 @@ analysis = st.session_state.get("analysis")
 if analysis:
     st.divider()
     st.markdown('<div class="section-title">餐食结构分析</div>', unsafe_allow_html=True)
-    st.write(analysis.get("meal_summary", ""))
+    st.markdown(
+        f'<div class="result-summary">{escape(analysis.get("meal_summary", ""))}</div>',
+        unsafe_allow_html=True,
+    )
 
     structure = analysis.get("meal_structure") or {}
     state_labels = {
@@ -203,22 +215,41 @@ if analysis:
 
     issues = analysis.get("main_issues") or []
     if issues:
-        st.markdown("#### 主要问题")
+        st.markdown('<div class="result-block-title">主要问题</div>', unsafe_allow_html=True)
         for issue in issues:
-            st.warning(f"**{issue.get('dimension', '餐食结构')}：** {issue.get('message', '')}")
+            st.markdown(
+                '<div class="issue-card">'
+                f'<div class="card-title">{escape(issue.get("dimension", "餐食结构"))}</div>'
+                f'{escape(issue.get("message", ""))}</div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown('<div class="result-block-title">本餐亮点</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="praise-card"><div class="card-title">搭配得很不错</div>'
+            '主食、蛋白质和蔬菜都已包含，基础结构完整，值得继续保持。</div>',
+            unsafe_allow_html=True,
+        )
 
     suggestions = analysis.get("suggestions") or []
     if suggestions:
-        st.markdown("#### 可以这样调整")
+        heading = "一个小建议" if len(suggestions) == 1 else "可以这样调整"
+        st.markdown(f'<div class="result-block-title">{heading}</div>', unsafe_allow_html=True)
         for index, suggestion in enumerate(suggestions, start=1):
+            prefix = f"{index}. " if len(suggestions) > 1 else ""
             st.markdown(
-                f"**{index}. {suggestion.get('title', '调整建议')}**  \n"
-                f"{suggestion.get('action', '')}"
+                '<div class="suggestion-card">'
+                f'<div class="card-title">{prefix}{escape(suggestion.get("title", "调整建议"))}</div>'
+                f'{escape(suggestion.get("action", ""))}</div>',
+                unsafe_allow_html=True,
             )
 
     friendly_report = analysis.get("friendly_report")
     if friendly_report:
-        st.success(friendly_report)
+        st.markdown(
+            f'<div class="report-card">{escape(friendly_report)}</div>',
+            unsafe_allow_html=True,
+        )
 
     if analysis.get("limitations"):
         st.caption(f"分析说明：{analysis['limitations']}")
