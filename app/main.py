@@ -129,23 +129,20 @@ if result:
         st.caption("AI 可能会把菜品分得过细。请修改、删除或补充后再确认。")
 
         foods = result.get("foods") or []
-        table = pd.DataFrame(foods, columns=["id", "name", "category", "confidence", "evidence"])
+        table = pd.DataFrame(foods, columns=["name", "category"])
+        table.index = range(1, len(table) + 1)
         edited = st.data_editor(
             table,
-            hide_index=True,
+            hide_index=False,
             num_rows="dynamic",
             column_config={
-                "id": st.column_config.TextColumn("编号", disabled=True),
+                "_index": st.column_config.NumberColumn("编号", disabled=True),
                 "name": st.column_config.TextColumn("食物名称", required=True),
                 "category": st.column_config.SelectboxColumn(
                     "类别",
                     options=["主食", "蛋白质", "蔬菜", "水果", "奶豆坚果", "饮品", "其他"],
                     required=True,
                 ),
-                "confidence": st.column_config.SelectboxColumn(
-                    "置信度", options=["high", "medium"], disabled=True
-                ),
-                "evidence": st.column_config.TextColumn("识别依据", disabled=True),
             },
             width="stretch",
             key="foods_editor",
