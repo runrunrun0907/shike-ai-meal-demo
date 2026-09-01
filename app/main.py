@@ -383,7 +383,7 @@ if analysis:
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
             f'<div class="structure-value">{escape(value)}</div>'
-            f'<div class="structure-evidence">依据：{escape(ensure_sentence(evidence_text))}</div></div>',
+            f'<div class="structure-evidence">依据：{escape(evidence_text)}</div></div>',
             unsafe_allow_html=True,
         )
 

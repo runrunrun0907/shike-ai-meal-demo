@@ -59,9 +59,10 @@ class ProductLogicTests(unittest.TestCase):
             {"name": "清炒油麦菜", "categories": ["蔬菜"]},
         ]
         summary = build_meal_composition(foods)
-        self.assertIn("谷薯类：牛肉面。", summary)
-        self.assertIn("鱼禽肉蛋类：牛肉面。", summary)
-        self.assertIn("蔬菜：清炒油麦菜。", summary)
+        self.assertIn("谷薯类：牛肉面", summary)
+        self.assertIn("鱼禽肉蛋类：牛肉面", summary)
+        self.assertIn("蔬菜：清炒油麦菜", summary)
+        self.assertNotIn("。", summary)
         self.assertEqual(summary.count("\n"), 2)
 
     def test_multi_label_foods_contribute_to_structure(self) -> None:
@@ -114,6 +115,15 @@ class ProductLogicTests(unittest.TestCase):
         self.assertEqual(len(tips), 2)
         self.assertIn("谷薯类", tips[0])
         self.assertIn("奶类", tips[1])
+
+    def test_composite_food_tip_explains_why_it_has_two_groups(self) -> None:
+        tips = build_knowledge_tips(
+            [{"name": "番茄炒蛋", "categories": ["鱼禽肉蛋类", "蔬菜"]}]
+        )
+        self.assertEqual(len(tips), 1)
+        self.assertIn("为什么番茄炒蛋会出现在两类", tips[0])
+        self.assertIn("番茄计入蔬菜", tips[0])
+        self.assertIn("鸡蛋计入鱼禽肉蛋类", tips[0])
 
     def test_analysis_payload_expands_multi_label_foods(self) -> None:
         payload = analysis_payload(

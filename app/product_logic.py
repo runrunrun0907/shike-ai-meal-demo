@@ -149,7 +149,7 @@ def build_meal_composition(foods: Iterable[dict[str, object]]) -> str:
     parts = []
     for category, names in grouped.items():
         if names:
-            parts.append(f"{category}：{'、'.join(names)}。")
+            parts.append(f"{category}：{'、'.join(names)}")
     return "\n".join(parts) if parts else "暂时没有可分析的食物。"
 
 
@@ -236,7 +236,10 @@ def build_knowledge_tips(foods: Iterable[dict[str, object]]) -> list[str]:
     if any("牛奶" in name for name in names):
         tips.append("牛奶归入奶类。它可以提供蛋白质和钙，但食物类别不等同于单一营养素。")
     if any(("番茄" in name or "西红柿" in name) and "蛋" in name for name in names):
-        tips.append("番茄炒蛋同时包含蔬菜和鱼禽肉蛋类，不需要在两者之间二选一。")
+        tips.append(
+            "为什么番茄炒蛋会出现在两类？因为番茄计入蔬菜，鸡蛋计入鱼禽肉蛋类；"
+            "它是一道复合菜，所以会同时参与蔬菜和蛋白质来源的结构判断。"
+        )
     if any("坚果" in name or name in ("花生", "核桃", "腰果", "杏仁") for name in names):
         tips.append("坚果归入大豆坚果类，通常以脂肪贡献为主，也能提供部分蛋白质。")
     return tips[:2]
