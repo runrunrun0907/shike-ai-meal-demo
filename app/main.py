@@ -79,11 +79,13 @@ st.markdown(
     .composition-row {display: grid; grid-template-columns: 6.5rem 1fr; gap: .75rem; padding: .35rem 0;}
     .composition-row + .composition-row {border-top: 1px solid #e6eee8;}
     .composition-label {font-weight: 750; color: #276b45;}
-    .structure-card {border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
+    .structure-card {display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box;
+      min-height: 132px; height: 100%; border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
-    .structure-label {color: #111; font-size: 1rem; font-weight: 700; margin-bottom: .3rem;}
-    .structure-value {color: #111; font-size: 1.34rem; font-weight: 800;}
-    .structure-evidence {color: #111; font-size: .9rem; font-weight: 550; line-height: 1.5; margin-top: .38rem;}
+    .structure-label {color: #111; font-size: 1rem; font-weight: 700; line-height: 1.4;}
+    .structure-value {font-size: 1.34rem; font-weight: 800; line-height: 1.4; margin-top: .55rem;}
+    .structure-value.is-present {color: var(--primary-color, #2e8b57);}
+    .structure-value.is-missing {color: #718078;}
     .result-summary {margin: .25rem 0 1.05rem; color: #34453b; font-size: 1.04rem; line-height: 1.72;}
     .result-block-title {margin: 1.35rem 0 .55rem; color: #24302a; font-size: 1.18rem; font-weight: 750;}
     .praise-card, .issue-card, .suggestion-card {border-radius: 16px; padding: .9rem 1.1rem;
@@ -114,7 +116,7 @@ st.markdown(
       .step {padding: .62rem .35rem; font-size: .78rem;}
       .step span {display: none;}
       .composition-row {grid-template-columns: 5.5rem 1fr;}
-      .structure-card {margin-bottom: .5rem; padding: .85rem;}
+      .structure-card {min-height: 0; margin-bottom: .5rem; padding: .9rem;}
       .section-title {font-size: 1.18rem;}
       .result-block-title {font-size: 1.08rem; margin-top: 1.1rem;}
       .result-summary, .praise-card, .issue-card, .suggestion-card, .report-card {line-height: 1.62;}
@@ -388,27 +390,21 @@ if analysis:
     )
 
     evidence = category_evidence(confirmed_foods)
-    category_labels = (
-        ("主食来源", "staple", "来自谷薯类"),
-        ("蛋白质来源", "protein", "来自鱼禽肉蛋类、奶类或大豆坚果类"),
-        ("蔬菜", "vegetables", "来自蔬菜类"),
-    )
+    category_labels = (("主食", "staple"), ("肉蛋奶豆", "protein"), ("蔬菜", "vegetables"))
     columns = st.columns(3)
-    for column, (label, key, source) in zip(columns, category_labels):
+    for column, (label, key) in zip(columns, category_labels):
         value = "已包含" if evidence.get(key) else "未明显出现"
-        evidence_text = "、".join(evidence.get(key) or []) or "食物列表中未明显看到"
+        status_class = "is-present" if evidence.get(key) else "is-missing"
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
-            f'<div class="structure-value">{escape(value)}</div>'
-            f'<div class="structure-evidence">{escape(source)}</div>'
-            f'<div class="structure-evidence">依据：{escape(evidence_text)}</div></div>',
+            f'<div class="structure-value {status_class}">{escape(value)}</div></div>',
             unsafe_allow_html=True,
         )
 
     issues = analysis.get("main_issues") or []
     local_missing = [
         (label, f"确认后的食物列表中暂未明显看到{label}。")
-        for label, key, _source in category_labels
+        for label, key in category_labels
         if not evidence.get(key)
     ]
     if issues:
@@ -432,7 +428,7 @@ if analysis:
         st.markdown('<div class="result-block-title">✨ 本餐亮点</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="praise-card"><div class="card-title">搭配得很不错</div>'
-            '主食、蛋白质和蔬菜都已包含，基础结构完整，值得继续保持。</div>',
+            '主食、肉蛋奶豆和蔬菜都已包含，基础结构完整，值得继续保持。</div>',
             unsafe_allow_html=True,
         )
 
@@ -447,7 +443,13 @@ if analysis:
                 unsafe_allow_html=True,
             )
 
-    suggestions = analysis.get("suggestions") or []
+    non_adjustment_prefixes = ("保持现有", "继续保持", "维持当前", "无需调整", "不用调整")
+    suggestions = [
+        suggestion
+        for suggestion in (analysis.get("suggestions") or [])
+        if not str(suggestion.get("title", "")).strip().startswith(non_adjustment_prefixes)
+        and not str(suggestion.get("action", "")).strip().startswith(non_adjustment_prefixes)
+    ]
     if suggestions:
         heading = "💡 一个小建议" if len(suggestions) == 1 else "💡 可以这样调整"
         st.markdown(f'<div class="result-block-title">{heading}</div>', unsafe_allow_html=True)

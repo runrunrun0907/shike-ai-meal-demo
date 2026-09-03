@@ -246,13 +246,13 @@ def build_meal_composition(foods: Iterable[dict[str, object]]) -> str:
 def build_structure_summary(foods: Iterable[dict[str, object]]) -> str:
     """Build a deterministic headline from the user's confirmed food groups."""
     evidence = category_evidence(foods)
-    labels = {"staple": "主食", "protein": "蛋白质来源", "vegetables": "蔬菜"}
+    labels = {"staple": "主食", "protein": "肉蛋奶豆", "vegetables": "蔬菜"}
     present = [labels[key] for key in labels if evidence[key]]
     missing = [labels[key] for key in labels if not evidence[key]]
     if not present:
-        return "暂时无法从确认的食物中判断主食、蛋白质来源和蔬菜结构。"
+        return "暂时无法从确认的食物中判断主食、肉蛋奶豆和蔬菜结构。"
     if not missing:
-        return "这一餐已经包含主食、蛋白质来源和蔬菜，基础结构比较完整。"
+        return "这一餐已经包含主食、肉蛋奶豆和蔬菜，基础结构比较完整。"
     return f"这一餐已经包含{'、'.join(present)}，暂未明显看到{'、'.join(missing)}。"
 
 
