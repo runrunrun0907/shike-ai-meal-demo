@@ -174,7 +174,7 @@ class ProductLogicTests(unittest.TestCase):
         self.assertIn("清炒青菜补充了蔬菜", report)
 
         incomplete = [{"name": "蛋炒饭", "categories": ["谷薯类", "鱼禽肉蛋类"]}]
-        self.assertIn("暂未明显看到蔬菜", build_structure_summary(incomplete))
+        self.assertIn("暂未明显识别膳食纤维相关食物", build_structure_summary(incomplete))
         self.assertIn("暂未明显看到蔬菜", build_meal_report(incomplete))
 
     def test_risk_alerts_require_strong_name_evidence(self) -> None:

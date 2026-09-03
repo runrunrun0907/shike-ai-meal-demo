@@ -80,12 +80,16 @@ st.markdown(
     .composition-row + .composition-row {border-top: 1px solid #e6eee8;}
     .composition-label {font-weight: 750; color: #276b45;}
     .structure-card {display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box;
-      min-height: 132px; height: 100%; border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
+      min-height: 158px; height: 100%; border: 1px solid #dce9df; border-radius: 16px; padding: 1rem;
       background: #fff; text-align: center; box-shadow: 0 5px 16px rgba(42,88,57,.05);}
     .structure-label {color: #111; font-size: 1rem; font-weight: 700; line-height: 1.4;}
     .structure-value {font-size: 1.34rem; font-weight: 800; line-height: 1.4; margin-top: .55rem;}
     .structure-value.is-present {color: var(--primary-color, #2e8b57);}
     .structure-value.is-missing {color: #718078;}
+    .structure-details {width: 100%; margin-top: .7rem; color: #34453b; font-size: .84rem; font-weight: 400;}
+    .structure-details summary {cursor: pointer; color: #5f7167; font-weight: 400; list-style-position: inside;}
+    .structure-source {margin-top: .45rem; padding-top: .45rem; border-top: 1px solid #e6eee8;
+      line-height: 1.55; overflow-wrap: anywhere;}
     .result-summary {margin: .25rem 0 1.05rem; color: #34453b; font-size: 1.04rem; line-height: 1.72;}
     .result-block-title {margin: 1.35rem 0 .55rem; color: #24302a; font-size: 1.18rem; font-weight: 750;}
     .praise-card, .issue-card, .suggestion-card {border-radius: 16px; padding: .9rem 1.1rem;
@@ -390,21 +394,28 @@ if analysis:
     )
 
     evidence = category_evidence(confirmed_foods)
-    category_labels = (("主食", "staple"), ("肉蛋奶豆", "protein"), ("蔬菜", "vegetables"))
+    category_labels = (
+        ("碳水化合物", "staple", "暂未识别到明显来源"),
+        ("蛋白质", "protein", "暂未识别到明显来源"),
+        ("膳食纤维", "vegetables", "暂未识别到明显来源"),
+    )
     columns = st.columns(3)
-    for column, (label, key) in zip(columns, category_labels):
-        value = "已包含" if evidence.get(key) else "未明显出现"
+    for column, (label, key, fallback) in zip(columns, category_labels):
+        value = "已识别到" if evidence.get(key) else "未明显识别"
         status_class = "is-present" if evidence.get(key) else "is-missing"
+        source_text = "、".join(evidence.get(key) or []) or fallback
         column.markdown(
             f'<div class="structure-card"><div class="structure-label">{escape(label)}</div>'
-            f'<div class="structure-value {status_class}">{escape(value)}</div></div>',
+            f'<div class="structure-value {status_class}">{escape(value)}</div>'
+            '<details class="structure-details"><summary>查看食物来源</summary>'
+            f'<div class="structure-source">{escape(source_text)}</div></details></div>',
             unsafe_allow_html=True,
         )
 
     issues = analysis.get("main_issues") or []
     local_missing = [
-        (label, f"确认后的食物列表中暂未明显看到{label}。")
-        for label, key in category_labels
+        (label, f"确认后的食物列表中暂未明显识别到{label}相关食物。")
+        for label, key, _fallback in category_labels
         if not evidence.get(key)
     ]
     if issues:
@@ -428,7 +439,7 @@ if analysis:
         st.markdown('<div class="result-block-title">✨ 本餐亮点</div>', unsafe_allow_html=True)
         st.markdown(
             '<div class="praise-card"><div class="card-title">搭配得很不错</div>'
-            '主食、肉蛋奶豆和蔬菜都已包含，基础结构完整，值得继续保持。</div>',
+            '已经识别到碳水化合物、蛋白质和膳食纤维相关食物，基础结构完整，值得继续保持。</div>',
             unsafe_allow_html=True,
         )
 
